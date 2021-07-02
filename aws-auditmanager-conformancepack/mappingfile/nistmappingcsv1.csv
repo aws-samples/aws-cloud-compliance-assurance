@@ -1,0 +1,13 @@
+control-id,configrule1,configrule2,configrule3,configrule4,configrule5,configrule6,configrule7,configrule8,configrule9,configrule10
+ID.AM-2,ec2-instance-managed-by-systems-manager,ec2-managedinstance-association-compliance-status-check,none,none,none,none,none,none,none,none
+ID.AM-3,api-gw-execution-logging-enabled,cloudtrail-enabled,elb-logging-enabled,multi-region-cloudtrail-enabled,redshift-cluster-configuration-check,s3-bucket-logging-enabled,vpc-flow-logs-enabled,none,none,none
+ID.AM-6,iam-user-group-membership-check,none,none,none,none,none,none,none,none,none
+ID.BE-5,autoscaling-group-elb-healthcheck-required,db-instance-backup-enabled,dynamodb-autoscaling-enabled dynamodb-throughput-limit-check,elasticache-redis-cluster-automatic-backup-check,elb-deletion-protection-enabled,rds-multi-az-support,s3-bucket-replication-enabled,s3-bucket-versioning-enabled,vpc-vpn-2-tunnels-up,none
+ID.RA-1,ec2-managedinstance-patch-compliance-status-check,guardduty-enabled-centralized,securityhub-enabled,none,none,none,none,none,none,none
+ID.RA-2,guardduty-enabled-centralized,securityhub-enabled,none,none,none,none,none,none,none,none
+ID.RA-3,guardduty-enabled-centralized,securityhub-enabled,none,none,none,none,none,none,none,none
+PR.AC-1,access-keys-rotated,iam-group-has-users-check,iam-password-policy,iam-policy-no-statements-with-admin-access,iam-root-access-key-check,iam-user-group-membership-check,iam-user-no-policies-check,iam-user-unused-credentials-check,s3-bucket-policy-grantee-check,secretsmanager-rotation-enabled-check
+PR.AC-3,dms-replication-not-public,ebs-snapshot-public-restorable-check,ec2-instance-no-public-ip,elasticsearch-in-vpc-only,emr-master-no-public-ip,iam-user-mfa-enabled,restricted-ssh,ec2-instances-in-vpc,internet-gateway-authorized-vpc-only,lambda-function-public-access-prohibited
+PR.AC-3-Part2,s3-bucket-policy-grantee-check,s3-bucket-public-read-prohibited,s3-bucket-public-write-prohibited,sagemaker-notebook-no-direct-internet-access,vpc-default-security-group-closed,vpc-sg-open-only-to-authorized-ports,none,none,none,none
+PR.AC-4,emr-kerberos-enabled,iam-group-has-users-check,iam-policy-no-statements-with-admin-access,iam-root-access-key-check,iam-user-group-membership-check,iam-user-no-policies-check,iam-user-unused-credentials-check,s3-bucket-policy-grantee-check,none,none
+PR.AC-5,acm-certificate-expiration-check,dms-replication-not-public,ebs-snapshot-public-restorable-check,ec2-instance-no-public-ip,none,none,none,none,none,none

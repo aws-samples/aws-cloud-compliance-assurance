@@ -1,0 +1,840 @@
+
+# -------------------------------------------------------------------------------------------------
+# CloudFormation Template 1 of 3 - Real Time Automated Remediation for CIS AWS Foundations Benchmark
+#
+# Provisions Systems Manager Automation Documents for CIS AWS Foundations Benchmark 
+# Each document is invoked from a AWS Security Hub Custom Action 
+# 
+# 
+# @author Kanishk Mahajan
+# ---------------------------------------------------------------------------------------------------
+
+
+Outputs:
+  FlowLogsRoleArn:
+    Description: Arn for FlowsLogsRole
+    Value: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${FlowLogsRole}'  
+    Export: # added to export
+      Name: FlowLogsRoleArn
+  AutomationAssumeRoleArn:
+    Description: Arn for AutomationAssumeRole
+    Value: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}'
+    Export: # added to export
+      Name: AutomationAssumeRoleArn
+  CloudTrailLogGroupArn:
+    Description: Arn for CloudTrail CloudWatch Logs
+    Value: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CloudTrailLogGroup}:*"
+    Export: # added to export
+      Name: CloudTrailLogGroupArn
+  S3LoggingBucketFullName:
+    Description: S3 Logging Bucket  - CIS 2.6
+    Value: !Ref S3LoggingBucket
+    Export: # added to export
+      Name: S3LoggingBucketFullName
+  FlowLogsCloudWatchLogGroupArn:
+    Description: Arn for FlowLogs CloudWatchLogs
+    Value: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${FlowLogsCloudWatchLogs}"
+    Export: # added to export
+      Name: FlowLogsCloudWatchLogGroupArn
+  FlowLogsCloudWatchLogs:
+    Description: Name of FlowLogs CloudWatch Logs
+    Value: !Ref FlowLogsCloudWatchLogs
+    Export: # added to export
+      Name: FlowLogsCloudWatchLogs
+  CISS3CloudTrailBucket:
+    Description: CIS S3 CloudTrail Bucket
+    Value: !Ref CISS3CloudTrailBucket
+    Export: # added to export
+      Name: CISS3CloudTrailBucket
+  CloudTrailLogGroup:
+    Description: CIS CloudTrail CloudWatch Log Group
+    Value: !Ref CloudTrailLogGroup
+    Export: # added to export
+      Name: CloudTrailLogGroup
+  CISCloudTrail:
+    Description: CIS CloudTrail
+    Value: 'remediation-cis-trail'
+    Export: # added to export
+      Name: CISCloudTrail
+  CloudWatchRoleArn:
+    Description: Arn for CloudTrail CloudWatch IAM Role 
+    Value: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${CloudWatchRole}"
+    Export: # added to export
+      Name: CloudWatchRoleArn
+  KMSKeyArn:
+    Description: Arn for KMS CMK
+    Value: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/${KmsKeyId}"
+    Export: # added to export
+      Name: KMSKeyArn
+
+Resources:
+
+# ------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - Pre-requesites
+#
+# Provisions all pre-req AWS Services for CIS benchmarks
+#
+# @kanishk.mahajan
+# ---------------------------------------------------------------------------------------------
+
+
+# Bucket Policy for CIS S3 Bucket. Restrict to allow access to only SSL transport.
+  CISBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CISS3CloudTrailBucket
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - "s3:*"
+            Effect: "Allow"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}/*
+            Principal:
+              AWS:
+              - !Ref AWS::AccountId
+          -
+            Action:
+              - "s3:*"
+            Effect: "Allow"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}/*
+            Principal:
+              Service:
+              - cloudtrail.amazonaws.com
+          -
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+# S3 Bucket to store CloudTrail logs
+  CISS3CloudTrailBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "s3-cis-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      AccessControl: BucketOwnerFullControl
+      LifecycleConfiguration:
+        Rules:
+          -
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 3
+            NoncurrentVersionExpirationInDays: 3
+            Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        -
+          Key: Description
+          Value: S3 Bucket for CloudTrail Logs
+      VersioningConfiguration:
+        Status: Enabled
+
+# Bucket Policy for CIS S3 Bucket. Restrict to allow access to only SSL transport.
+  S3LoggingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3LoggingBucket
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - "s3:*"
+              - s3:PutObject
+              - s3:PutBucketLogging
+              - s3:PutBucketVersioning
+              - s3:GetObject
+              - s3:GetBucketLocation
+              - s3:ListBucket
+            Effect: "Allow"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${S3LoggingBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${S3LoggingBucket}/*
+            Principal:
+              AWS:
+              - !Ref AWS::AccountId
+          -
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${S3LoggingBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${S3LoggingBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+# S3 Bucket for Bucket Logging
+  S3LoggingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "s3-logging-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      AccessControl: BucketOwnerFullControl
+      LifecycleConfiguration:
+        Rules:
+          -
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 3
+            NoncurrentVersionExpirationInDays: 3
+            Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        -
+          Key: Description
+          Value: S3 Bucket for Logging
+      VersioningConfiguration:
+        Status: Enabled
+
+
+#FlowLogs CW Log Group
+  FlowLogsCloudWatchLogs: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub flowlogscloudwatchlogs-${AWS::Region}
+      RetentionInDays: 1827
+
+#CloudTrail CW Log Group
+  CloudTrailLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub DefaultLogGroup-${AWS::Region}
+      RetentionInDays: 1827
+
+# Flow Logs Role
+  FlowLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub flowlogsrole-${AWS::Region}
+      Policies:
+      - PolicyName: FlowLogsPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:StartAutomationExecution
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - iam:PassRole
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - cloudtrail:UpdateTrail
+            - securityhub:UpdateFindings
+            Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: 
+            Service:
+              - vpc-flow-logs.amazonaws.com 
+              - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+
+# SSM Automation Role
+  AutomationAssumeRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub automationassumerole-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ssm.amazonaws.com
+                - events.amazonaws.com
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+
+# Cloud Watch Role
+  CloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub CloudTrail_CloudWatchLogs_Role-${AWS::Region}
+      Policies:
+      - PolicyName: CloudWatchLogsRolePolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:StartAutomationExecution
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - iam:PassRole
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - cloudtrail:UpdateTrail
+            - securityhub:UpdateFindings
+            Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: 
+            Service:
+              - cloudtrail.amazonaws.com 
+          Action:
+          - sts:AssumeRole
+
+# CIS KMS CMK
+  KmsKeyId:
+    Type: 'AWS::KMS::Key'
+    Properties:
+      EnableKeyRotation: true
+      Enabled: true
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: 'kms:*'
+            Resource: '*'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 2.7 – Ensure CloudTrail logs are encrypted at rest using AWS KMS CMKs
+#
+# SSM Automation Document that leverages  context passed from AWS Security Hub action 
+# Similar pattern is repeated for each automation document
+#
+# @kanishk.mahajan
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomCloudTrailEncryptionAutomationCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-CloudTrailEncryptionCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+          CloudTrailLogGroupArn:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CloudTrailLogGroup}:*"
+          CloudWatchRoleArn:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${CloudWatchRole}"
+          TrailName:
+            type: String
+          KMSKeyArn:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/${KmsKeyId}"
+        mainSteps:
+          - name: EncryptCloudTrail
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: encrypttrail_handler
+              Script: "def encrypttrail_handler(events, context):\r\n  import boto3\r\n  cloudtrail = boto3.client('cloudtrail')\r\n\r\n  CloudTrailLogGroupArn = events['CloudTrailLogGroupArn']\r\n  CloudWatchRoleArn = events['CloudWatchRoleArn']\r\n  TrailName = events['TrailName']\r\n  KMSKeyArn = events['KMSKeyArn']\r\n\r\n  response = cloudtrail.update_trail(\r\n    Name=TrailName,\r\n    IncludeGlobalServiceEvents=True,\r\n    IsMultiRegionTrail=True,\r\n    EnableLogFileValidation=True,\r\n    CloudWatchLogsLogGroupArn=CloudTrailLogGroupArn,\r\n    CloudWatchLogsRoleArn=CloudWatchRoleArn,\r\n    KmsKeyId=KMSKeyArn\r\n  )   "
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                CloudTrailLogGroupArn: '{{CloudTrailLogGroupArn}}'
+                CloudWatchRoleArn: '{{CloudWatchRoleArn}}'
+                TrailName: '{{TrailName}}'
+                KMSKeyArn: '{{KMSKeyArn}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 2.8 – Ensure rotation for customer-created CMKs is enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomCMKBackingKeyRotationCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-CMKBackingKeyRotationCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          KMSKeyArn:
+            type: String
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        mainSteps:
+          - name: rotatebackingkey
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: rotatebackingkey_handler
+              Script: "def rotatebackingkey_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('kms')\r\n\r\n  KMSKeyArn = events['KMSKeyArn']\r\n\r\n  response = client.enable_key_rotation(\r\n    KeyId=KMSKeyArn\r\n  )"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                KMSKeyArn: '{{KMSKeyArn}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 2.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomCloudTrailUpdateCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-CloudTrailUpdateCF
+      Content:
+        description: CIS 2.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+          CloudTrailLogGroupArn:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CloudTrailLogGroup}:*"
+          CloudWatchRoleArn:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${CloudWatchRole}"
+          TrailName:
+            type: String
+        mainSteps:
+          - name: UpdateCloudTrail
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updatetrail_handler
+              Script: "def updatetrail_handler(events, context):\r\n  import boto3\r\n  cloudtrail = boto3.client('cloudtrail')\r\n\r\n  CloudTrailLogGroupArn = events['CloudTrailLogGroupArn']\r\n  CloudWatchRoleArn = events['CloudWatchRoleArn']\r\n  TrailName = events['TrailName']\r\n\r\n  response = cloudtrail.update_trail(\r\n    Name=TrailName,\r\n    IncludeGlobalServiceEvents=True,\r\n    IsMultiRegionTrail=True,\r\n    EnableLogFileValidation=True,\r\n    CloudWatchLogsLogGroupArn=CloudTrailLogGroupArn,\r\n    CloudWatchLogsRoleArn=CloudWatchRoleArn\r\n  )\r\n"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                CloudTrailLogGroupArn: '{{CloudTrailLogGroupArn}}'
+                CloudWatchRoleArn: '{{CloudWatchRoleArn}}'
+                TrailName: '{{TrailName}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 1.5-1.11 – Updates IAM Account Settings Password Policy
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomIAMPasswordUpdateCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-IAMPasswordUpdateCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        mainSteps:
+          - name: updatepasswordpolicy
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updateiampolicy_handler
+              Script: |
+                def updateiampolicy_handler(events, context):
+                  import boto3
+                  iam = boto3.client('iam')
+                  
+                  response = iam.update_account_password_policy(
+                                AllowUsersToChangePassword=True,
+                                HardExpiry=True,
+                                MaxPasswordAge=90 ,
+                                MinimumPasswordLength=14,
+                                PasswordReusePrevention=24,
+                                RequireLowercaseCharacters=True,
+                                RequireNumbers=True,
+                                RequireSymbols=True,
+                                RequireUppercaseCharacters=True)
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 1.3-1.4 – Disable and Rotate IAM Access Key that is older than 90 days
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomIAMKeyRotate90DaysCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-IAMKeyRotate90DaysCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          username:
+            type: String
+            default: 'cisadmin'
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        mainSteps:
+          - name: rotateiam90days
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: rotateiam90days_handler
+              Script: |
+                def rotateiam90days_handler(events, context):
+                  import boto3
+                  import datetime
+                  import json
+                  import os
+                  iam = boto3.client('iam')
+                  securityhub = boto3.client('securityhub')
+                  iam_resource = boto3.resource('iam')
+                  try:
+                     username = events['username']
+                     todaysDatetime = datetime.datetime.now(datetime.timezone.utc)
+                     paginator = iam.get_paginator('list_access_keys')
+                     for response in paginator.paginate(UserName=username):
+                         for keyMetadata in response['AccessKeyMetadata']:
+                             accessKeyId = str(keyMetadata['AccessKeyId'])
+                             keyAgeFinder = todaysDatetime - keyMetadata['CreateDate']
+                             if keyAgeFinder <= datetime.timedelta(days=90):
+                                 print("Access key: " + accessKeyId + " is compliant")
+                             else:
+                               print("Access key over 90 days old found!")
+                               access_key = iam_resource.AccessKey(username, accessKeyId)
+                               access_key.deactivate()
+                  except Exception as e:
+                     print(e)
+                     raise
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                username: '{{username}}'
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 1.12 – Deactivate Root Account IAM Access Key
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomDeactivateRootIAMAccessKeyCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-DeactivateRootIAMAccessKeyCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          username:
+            type: String
+            default: 'root'
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        mainSteps:
+          - name: deactivaterootiamaccesskey
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: deactivaterootiamaccesskey_handler
+              Script: |
+                def deactivaterootiamaccesskey_handler(events, context):
+                  import boto3
+                  import json
+                  import os
+                  iam = boto3.client('iam')
+                  iam_resource = boto3.resource('iam')
+                  try:
+                     username = events['username']
+                     access_key = iam_resource.AccessKey(username, accessKeyId)
+                     access_key.deactivate()
+                  except Exception as e:
+                     print(e)
+                     raise
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                username: '{{username}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 1.16 – Ensure IAM policies are attached only to groups or roles
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomIAMUserPolicyDetachCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-IAMUserPolicyDetachCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          username:
+            type: String
+            default: 'cisadmin'
+          findingid:
+            type: String
+            default: '0123'
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        mainSteps:
+          - name: detachiamuserpolicy
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: detachiamuserpolicy_handler
+              Script: |
+                def detachiamuserpolicy_handler(events, context):
+                  import boto3
+                  import json
+                  import os
+                  client = boto3.client('iam')
+                  securityhub = boto3.client('securityhub')
+                  iam = boto3.resource('iam')
+                  try:
+                     userName = events['username']
+                     findingid = events['findingid']
+                     userpolicyresponse = client.list_attached_user_policies(UserName=userName)
+                     userpolicies =[]
+                     userpolicies = userpolicyresponse.get("AttachedPolicies")
+
+                     newgroup = "CISGroup" + "-" + userName + "-" + findingid
+                     grouplist = client.list_groups()
+
+                     for group in grouplist:
+                       try:
+                         if group['GroupName'] == newgroup:
+                           print("foundGroup")   
+                           break
+                         else:
+                           response = client.create_group(
+                             GroupName = newgroup
+                           )
+                       except Exception as e:
+                         print(e) 
+
+                     group = iam.Group(newgroup)
+                     for policy in userpolicies:
+                       try:
+                         response = group.attach_policy(
+                           PolicyArn = policy['PolicyArn']
+                         )
+                         print(response)
+                       except Exception as e:
+                         print(e)  
+
+                     for policy in userpolicies:
+                        try:
+                          response_1 = client.detach_user_policy(
+                            UserName=userName,
+                            PolicyArn=policy['PolicyArn']
+                          )
+                        except Exception as e:
+                          print(e)     
+
+                     try:
+                       response_2 = client.add_user_to_group(
+                         GroupName = newgroup,
+                         UserName = userName
+                       )
+                     except Exception as e:
+                       print(e) 
+
+                  except Exception as e:
+                     print(e)
+                     raise         
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                username: '{{username}}'
+                findingid: '{{findingid}}'
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 1.22 – Ensure IAM policies that allow full "*:*" administrative privileges are not created
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomIAMFullAdminPolicyDetachCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-IAMFullAdminPolicyDetachCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          username:
+            type: String
+            default: 'cisadmin'
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        mainSteps:
+          - name: detachiamfulladminpolicy
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: detachiamfulladminpolicy_handler
+              Script: |
+                def detachiamfulladminpolicy_handler(events, context):
+                  import boto3
+                  import json
+                  import os
+                  client = boto3.client('iam')
+                  iam = boto3.resource('iam')
+                  try:
+                     userName = events['username']
+                     userpolicyresponse = client.list_attached_user_policies(UserName=userName)
+                     userpolicies =[]
+                     userpolicies = userpolicyresponse.get("AttachedPolicies")
+
+                     for policy in userpolicies:
+                        try:
+                          response = client.detach_user_policy(
+                            UserName=userName,
+                            PolicyArn=policy['PolicyArn']
+                          )
+                        except Exception as e:
+                          print(e)     
+
+                  except Exception as e:
+                     print(e)
+                     raise         
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                username: '{{username}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 2.2. – Ensure CloudTrail log file validation is enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomLogFileValidationCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-LogFileValidationCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+          CloudTrailLogGroupArn:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:${AWS::Region}:${AWS::AccountId}:log-group:${CloudTrailLogGroup}:*"
+          CloudWatchRoleArn:
+            type: String
+            default: !Sub "arn${AWS::Partition}:iam::${AWS::AccountId}:role/${CloudWatchRole}"
+          TrailName:
+            type: String
+        mainSteps:
+          - name: EnableLogFileValidation
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updatetrail_handler
+              Script: "def updatetrail_handler(events, context):\r\n  import boto3\r\n  cloudtrail = boto3.client('cloudtrail')\r\n\r\n  CloudTrailLogGroupArn = events['CloudTrailLogGroupArn']\r\n  CloudWatchRoleArn = events['CloudWatchRoleArn']\r\n  TrailName = events['TrailName']\r\n\r\n  response = cloudtrail.update_trail(\r\n    Name=TrailName,\r\n    IncludeGlobalServiceEvents=True,\r\n    IsMultiRegionTrail=True,\r\n    EnableLogFileValidation=True,\r\n    CloudWatchLogsLogGroupArn=CloudTrailLogGroupArn,\r\n    CloudWatchLogsRoleArn=CloudWatchRoleArn\r\n  )   "
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                CloudTrailLogGroupArn: '{{CloudTrailLogGroupArn}}'
+                CloudWatchRoleArn: '{{CloudWatchRoleArn}}'
+                TrailName: '{{TrailName}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 2.9 – Ensure VPC flow logging is enabled in all VPCs
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  EnableVPCFlowLogsCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-EnableVPCFlowLogsCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          CloudWatchLogGroupArn:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:log-group:${FlowLogsCloudWatchLogs}"
+          FlowLogRoleArn:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${FlowLogsRole}"
+          CloudWatchLogGroupName:
+            type: String
+            default: !Ref FlowLogsCloudWatchLogs
+          VpcId:
+            type: String
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        mainSteps:
+          - name: EnableFlowLogs
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: enableflowlogs_handler
+              Script: "def enableflowlogs_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('ec2')\r\n\r\n  CloudWatchLogGroupArn = events['CloudWatchLogGroupArn']\r\n  FlowLogRoleArn = events['FlowLogRoleArn']\r\n  CloudWatchLogGroupName = events['CloudWatchLogGroupName']\r\n  VpcId = events['VpcId']\r\n  AutomationAssumeRole = events['AutomationAssumeRole']\r\n\r\n  response = client.create_flow_logs(\r\n    DeliverLogsPermissionArn=FlowLogRoleArn,\r\n    ResourceIds=[\r\n        VpcId\r\n    ],\r\n    ResourceType='VPC',\r\n    TrafficType='REJECT',\r\n    LogDestinationType='cloud-watch-logs',\r\n    LogDestination=CloudWatchLogGroupArn\r\n  )"
+              InputPayload:
+                CloudWatchLogGroupName: '{{CloudWatchLogGroupName}}'
+                CloudWatchLogGroupArn: '{{CloudWatchLogGroupArn}}'
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                FlowLogRoleArn: '{{FlowLogRoleArn}}'
+                VpcId: '{{VpcId}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 4.1 and 4.2 –Disallow unrestricted security group access for incoming SSH or RDP traffic
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  RestrictSecurityGroupPublicAccess:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-RestrictSecurityGroup
+      Content:
+        schemaVersion: '0.3'
+        assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        parameters:
+          groupId:
+            type: String
+          IpAddressToBlock:
+            type: String
+            default: '0.0.0.0/0'
+          AutomationAssumeRole:
+            type: String
+            default: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"
+        mainSteps:
+          - name: RestrictSecurityGroup
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: restrict_sg
+              Script: "def restrict_sg(events, context):\r\n  import boto3\r\n  import json\r\n  import os\r\n  ec2 = boto3.resource('ec2')\r\n  defaultSecGroupId = events['groupId']\r\n  try:\r\n      defaultSG = ec2.SecurityGroup(defaultSecGroupId)\r\n      defaultIngress = defaultSG.ip_permissions\r\n      defaultEgress = defaultSG.ip_permissions_egress\r\n      revokeIngress = defaultSG.revoke_ingress(IpPermissions=defaultIngress)\r\n      revokeEgress = defaultSG.revoke_egress(IpPermissions=defaultEgress)\r\n  except Exception as e:\r\n      print(e)"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                groupId: '{{groupId}}'
+                IpAddressToBlock: '{{IpAddressToBlock}}'

@@ -1,0 +1,60 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+#  Provisions custom AWS Audit Manager assessment based on Security Hub checks
+#  Pre-req: AWS Lambda that creates a custom AWS Audit Manager control set and custom AWS Audit Manager 
+#  framework
+
+# kmmahaj
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation template to create custom Audit Manager assessments. You will be
+  billed for the AWS resources used if you create a stack from this template.
+Parameters:
+
+  AssessmentDestination:
+    Description: S3 Bucket and folder that stores the Custom Audit Manager Assessment Destination
+    Type: String
+    Default: 's3://s3-customauditmanagerframework-<AccountId>-<Region>/evidences/'
+    MinLength: '1'
+    MaxLength: '255'
+
+  AuditOwnerArn:
+    Description: ARN for IAM Audit Owner in your account.
+    Type: String
+    Default: 'arn:aws:iam::341476298946:user/AuditManagerAdmin'
+    MinLength: '1'
+    MaxLength: '255'
+
+Resources:
+
+#---------------------------------------------------------------------------------------------------
+#  1- Provision Custom Audit Manager Assessment
+#   - Use SSM Parameter Store to retrieve the Framework ID created by the custom backed Lambda 
+# --------------------------------------------------------------------------------------------------
+  
+  CustomAuditManagerAssessment:
+    Type: AWS::AuditManager::Assessment
+    Properties: 
+      AssessmentReportsDestination: 
+        Destination: !Ref AssessmentDestination
+        DestinationType: 'S3'
+      Description: 'Custom Security Hub Assessment'
+      FrameworkId: '{{resolve:ssm:CustomSecurityHubFrameworkID:1}}'
+      Name: 'CustomSecurityHubAssessment'
+      Roles: 
+        - 'RoleArn': !Ref AuditOwnerArn
+          'RoleType': 'PROCESS_OWNER'
+      Scope: 
+         AwsAccounts:
+          - 'Id': !Ref 'AWS::AccountId'
+         AwsServices:
+          - 'ServiceName': 's3'
+          - 'ServiceName': 'iam'
+          - 'ServiceName': 'cloudtrail'
+          - 'ServiceName': 'lambda'
+          - 'ServiceName': 'ec2'
+          - 'ServiceName': 'rds'
+      
+

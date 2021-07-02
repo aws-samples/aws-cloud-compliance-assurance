@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Enable AWS Config
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Configuration Recorder Configuration
+        Parameters:
+          - GlobalResourceTypesRegion
+      - Label:
+          default: Configuration Aggregator Configuration
+        Parameters:
+          - AggregatorAccount
+          - AggregatorRegion
+    ParameterLabels:
+      GlobalResourceTypesRegion:
+        default: Global resource types region
+      AggregatorAccount:
+        default: Aggregator account
+      AggregatorRegion:
+        default: Aggregator account
+      SourceRegion1:
+        default: Source region 1
+      SourceRegion2:
+        default: Source region 2
+
+
+Parameters:
+  GlobalResourceTypesRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region used to record global resources types
+  AggregatorAccount:
+    Type: String
+    Description: Account ID of the aggregator
+  AggregatorRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region of the aggregator
+  SourceRegion1:
+    Type: String
+    Description: 1st region to aggregate
+  SourceRegion2:
+    Type: String
+    Description: 2nd region to aggregate
+  CreateRecorder:
+    Type: String
+    Default: 'yes'
+    AllowedValues: 
+      - 'yes'
+      - 'no'
+    Description: Should this template create the recorder 
+
+Conditions:
+  IncludeGlobalResourceTypes: !Equals
+    - !Ref GlobalResourceTypesRegion
+    - !Ref AWS::Region
+  CreateAggregator: !And
+    - !Equals
+      - !Ref AggregatorAccount
+      - !Ref AWS::AccountId
+    - !Equals
+      - !Ref AggregatorRegion
+      - !Ref AWS::Region
+  CreateConfigRecorder: !Equals 
+    - !Ref CreateRecorder
+    - 'yes'
+
+
+Resources:
+
+  ConfigBucket:
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+
+  ConfigBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: CreateConfigRecorder 
+    Properties:
+      Bucket: !Ref ConfigBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AWSConfigBucketPermissionsCheck
+            Effect: Allow
+            Principal:
+              Service:
+                - config.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource:
+              - !Sub "arn:aws:s3:::${ConfigBucket}"
+          - Sid: AWSConfigBucketDelivery
+            Effect: Allow
+            Principal:
+              Service:
+                - config.amazonaws.com
+            Action: s3:PutObject
+            Resource:
+              - !Sub "arn:aws:s3:::${ConfigBucket}/AWSLogs/${AWS::AccountId}/*"
+
+  ConfigRecorderRole:
+    Type: AWS::IAM::Role
+    Condition: CreateConfigRecorder 
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - config.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSConfigRole
+
+  ConfigRecorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Condition: CreateConfigRecorder 
+    DependsOn:
+      - ConfigRecorderRole
+      - ConfigBucketPolicy
+    Properties:
+      RoleARN: !GetAtt ConfigRecorderRole.Arn
+      RecordingGroup:
+        AllSupported: True
+        IncludeGlobalResourceTypes: !If
+          - IncludeGlobalResourceTypes
+          - True
+          - False
+
+  DeliveryChannel:
+    Type: AWS::Config::DeliveryChannel
+    Condition: CreateConfigRecorder 
+    DependsOn:
+      - ConfigBucketPolicy
+    Properties:
+      Name: default
+      S3BucketName: !Ref ConfigBucket
+
+  S3BucketPublicReadRule:
+    Type: AWS::Config::ConfigRule
+    Condition: CreateConfigRecorder 
+    DependsOn:
+      - ConfigRecorder
+    Properties:
+      ConfigRuleName: stackset-s3-bucket-public-read-prohibited
+      Description: s3-bucket-public-read-prohibited from stackset
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::S3::Bucket
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED
+
+
+  ConfigAggregator:
+    Type: AWS::Config::ConfigurationAggregator
+    Condition: CreateAggregator
+    Properties:
+      ConfigurationAggregatorName: default
+      AccountAggregationSources:
+        - AccountIds: 
+            - !Ref AggregatorAccount
+          AwsRegions: 
+            - !Ref SourceRegion1
+            - !Ref SourceRegion2
+

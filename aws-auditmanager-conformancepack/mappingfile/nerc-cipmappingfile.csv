@@ -1,0 +1,29 @@
+control-id,configrule1,configrule2,configrule3,configrule4,configrule5,configrule6,configrule7,configrule8,configrule9,configrule10
+CIP-003-7-R2-Part 4,securityhub-enabled,guardduty-enabled-centralized,none,none,none,none,none,none,none,none
+CIP-003-8-Attachment 1-Section 3.1,dms-replication-not-public,ebs-snapshot-public-restorable-check,ec2-instance-no-public-ip,elasticsearch-in-vpc-only,emr-master-no-public-ip,restricted-ssh,ec2-instances-in-vpc,internet-gateway-authorized-vpc-only,lambda-function-public-access-prohibited,lambda-inside-vpc
+CIP-003-8-Attachment 1-Section 3.1-2,rds-instance-public-access-check,rds-snapshots-public-prohibited,redshift-cluster-public-access-check,restricted-common-ports,s3-account-level-public-access-blocks,s3-bucket-public-read-prohibited,s3-bucket-public-write-prohibited,sagemaker-notebook-no-direct-internet-access,vpc-default-security-group-closed,vpc-sg-open-only-to-authorized-ports
+CIP-004-6-R4-Part 4.1.1,emr-kerberos-enabled,iam-group-has-users-check,iam-policy-no-statements-with-admin-access,iam-root-access-key-check,iam-user-group-membership-check,iam-user-no-policies-check,iam-user-unused-credentials-check,dms-replication-not-public,ebs-snapshot-public-restorable-check,lambda-function-public-access-prohibited
+CIP-004-6-R4-Part 4.1.1-2,rds-instance-public-access-check,rds-snapshots-public-prohibited,redshift-cluster-public-access-check,s3-account-level-public-access-blocks,s3-bucket-public-read-prohibited,s3-bucket-public-write-prohibited,sagemaker-notebook-no-direct-internet-access,none,none,none
+CIP-004-6-R4-Part 4.1.3,s3-bucket-policy-grantee-check,s3-bucket-public-read-prohibited,s3-bucket-public-write-prohibited,none,none,none,none,none,none,none
+CIP-005-5-R1-Part 1.1,dms-replication-not-public,ebs-snapshot-public-restorable-check,ec2-instance-no-public-ip,elasticsearch-in-vpc-only,emr-master-no-public-ip,ec2-instances-in-vpc,internet-gateway-authorized-vpc-only,lambda-function-public-access-prohibited,lambda-inside-vpc,rds-instance-public-access-check
+CIP-005-5-R1-Part 1.1-2,rds-snapshots-public-prohibited,redshift-cluster-public-access-check,s3-account-level-public-access-blocks,s3-bucket-public-read-prohibited,s3-bucket-public-write-prohibited,sagemaker-notebook-no-direct-internet-access,none,none,none,none
+CIP-005-5-R1-Part 1.2,alb-waf-enabled,internet-gateway-authorized-vpc-only,none,none,none,none,none,none,none,none
+CIP-005-5-R1-Part 1.3,lambda-function-public-access-prohibited,rds-instance-public-access-check,rds-snapshots-public-prohibited,redshift-cluster-public-access-check,restricted-common-ports,s3-account-level-public-access-blocks,s3-bucket-public-read-prohibited,s3-bucket-public-write-prohibited,sagemaker-notebook-no-direct-internet-access,vpc-default-security-group-closed
+CIP-005-5-R1-Part 1.3-2,vpc-sg-open-only-to-authorized-ports,emr-master-no-public-ip,restricted-ssh,none,none,none,none,none,none,none
+CIP-005-5-R1-Part 1.5,guardduty-enabled-centralized,alb-waf-enabled,none,none,none,none,none,none,none,none
+CIP-005-5-R2-Part 2.2,alb-http-drop-invalid-header-enabled,elb-tls-https-listeners-only,elasticsearch-node-to-node-encryption-check,none,none,none,none,none,none,none
+CIP-005-5-R2-Part 2.3,iam-user-mfa-enabled,mfa-enabled-for-iam-console-access,none,none,none,none,none,none,none,none
+CIP-007-6-R1-Part 1.1,ec2-instance-no-public-ip,emr-master-no-public-ip,restricted-ssh,restricted-common-ports,vpc-default-security-group-closed,vpc-sg-open-only-to-authorized-ports,none,none,none,none
+CIP-007-6-R2-Part 2.1,guardduty-non-archived-findings,ec2-managedinstance-patch-compliance-status-check,ec2-managedinstance-association-compliance-status-check,none,none,none,none,none,none,none
+CIP-007-6-R3-Part 3.1-2,guardduty-enabled-centralized,alb-waf-enabled,none,none,none,none,none,none,none,none
+CIP-007-6-R4-Part 4.1,cloudtrail-enabled,api-gw-execution-logging-enabled,cloud-trail-cloud-watch-logs-enabled,cloudtrail-s3-dataevents-enabled,elb-logging-enabled,multi-region-cloudtrail-enabled,redshift-cluster-configuration-check,s3-bucket-logging-enabled,vpc-flow-logs-enabled,rds-logging-enabled
+CIP-007-6-R4-Part 4.1-2,wafv2-logging-enabled,none,none,none,none,none,none,none,none,none
+CIP-007-6-R4-Part 4.3,cw-loggroup-retention-period-check,none,none,none,none,none,none,none,none,none
+CIP-007-6-R5-Part 5.1,iam-password-policy,none,none,none,none,none,none,none,none,none
+CIP-008-5-R1-Part 1.1,guardduty-non-archived-findings,guardduty-enabled-centralized,securityhub-enabled,none,none,none,none,none,none,none
+CIP-009-6-R1-Part 1.3,db-instance-backup-enabled,dynamodb-in-backup-plan,dynamodb-pitr-enabled,ebs-in-backup-plan,efs-in-backup-plan,elasticache-redis-cluster-automatic-backup-check,rds-in-backup-plan,s3-bucket-replication-enabled,s3-bucket-versioning-enabled,s3-bucket-default-lock-enabled
+CIP-010-2-R1-Part 1.1,ec2-instance-managed-by-systems-manager,ec2-managedinstance-association-compliance-status-check,securityhub-enabled,ec2-stopped-instance,ec2-volume-inuse-check,none,none,none,none,none
+CIP-011-2-R1-Part 1.2,acm-certificate-expiration-check,alb-http-drop-invalid-header-enabled,alb-http-to-https-redirection-check,api-gw-cache-enabled-and-encrypted,cloud-trail-encryption-enabled,cloudwatch-log-group-encrypted,cmk-backing-key-rotation-enabled,dynamodb-table-encrypted-kms,ec2-ebs-encryption-by-default,efs-encrypted-check
+CIP-011-2-R1-Part 1.2-2,elasticsearch-encrypted-at-rest,elasticsearch-node-to-node-encryption-check,elb-acm-certificate-required,elb-tls-https-listeners-only,encrypted-volumes,kms-cmk-not-scheduled-for-deletion,rds-snapshot-encrypted,rds-storage-encrypted,redshift-cluster-configuration-check,redshift-require-tls-ssl
+CIP-011-2-R1-Part 1.2-3,s3-bucket-server-side-encryption-enabled,s3-bucket-ssl-requests-only,s3-default-encryption-kms,sagemaker-endpoint-configuration-kms-key-configured,sagemaker-notebook-instance-kms-key-configured,sns-encrypted-kms,none,none,none,none
+

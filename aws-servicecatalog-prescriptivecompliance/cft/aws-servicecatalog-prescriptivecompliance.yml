@@ -1,0 +1,779 @@
+# -------------------------------------------------------------------------------------------------
+#
+# REINFORCE Service Catalog remediations -
+# Provisions all pre-reqs for AWS Systems Manager Remediations
+# Provisions Misconfigured Resources to trigger attack for Reinforce scenario
+# Provisions On Demand Evaluations for AWS Config 
+# Provisions Custom AWS Systems Manager Automation Documents to provide Automated Remediations for AWS Config
+# Provisions a AWS Service Catalog Portfolio with an AWS Config Remediations Product.
+#   - The AWS Config Remediations Product provides automated detection with AWS Config and Remediations with AWS Systems Manager
+#   - The AWS Config Remediations Product is to be launched by the Team Member from the Service Catalog Console during the workshop
+#
+# @kmmahaj
+# ---------------------------------------------------------------------------------------------------
+
+
+Outputs:
+
+  SCAutomationAssumeRoleArn:
+    Description: Arn for SC AutomationAssumeRole
+    Value:
+      Fn::Join:
+        - ''
+        - - 'arn:aws:iam::'
+          - Ref: AWS::AccountId
+          - ':role/'
+          - !Ref SCAutomationAssumeRole
+    Export: # added to export
+      Name: SCAutomationAssumeRoleArn
+ 
+  SCCloudTrailLogGroupArn:
+    Description: Arn for SC CloudTrail CloudWatch Logs
+    Value:
+      Fn::Join:
+          - ''
+          - - 'arn:aws:logs:'
+            - Ref: AWS::Region
+            - ':'
+            - Ref: AWS::AccountId
+            - !Sub ':log-group:${SCCloudTrailLogGroup}:*'
+    Export: # added to export
+      Name: SCCloudTrailLogGroupArn
+
+  SCS3CloudTrailBucket:
+    Description: SC S3 CloudTrail Bucket
+    Value: !Ref SCS3CloudTrailBucket
+    Export: # added to export
+      Name: SCS3CloudTrailBucket
+  
+  SCCloudTrailLogGroup:
+    Description: SC CloudTrail CloudWatch Log Group
+    Value: !Ref SCCloudTrailLogGroup
+    Export: # added to export
+      Name: SCCloudTrailLogGroup
+  
+  SCCloudTrail:
+    Description: SC CloudTrail
+    Value: 'remediation-sc-trail'
+    Export: # added to export
+      Name: SCCloudTrail
+  
+  SCCloudWatchRoleArn:
+    Description: Arn for CloudTrail CloudWatch IAM Role 
+    Value:
+      Fn::Join:
+        - ''
+        - - 'arn:aws:iam::'
+          - Ref: AWS::AccountId
+          - ':role/'
+          - !Ref SCCloudWatchRole
+    Export: # added to export
+      Name: SCCloudWatchRoleArn
+
+  MisconfiguredTrail:
+    Description: CloudTrail with Log File Validation and CW Logs Disabled
+    Value: !Ref MisconfiguredTrail
+    Export: # added to export
+      Name: MisconfiguredTrail
+
+  MisconfiguredKmsKey:
+    Description: KMS Key with 
+    Value: !Ref MisconfiguredKmsKey
+    Export: # added to export
+      Name: MisconfiguredKmsKey
+
+  MisconfiguredEIP:
+    Description: CIS CloudTrail CloudWatch Log Group
+    Value: !Ref MisconfiguredEIP
+    Export: # added to export
+      Name: MisconfiguredEIP
+
+Resources:
+
+# ------------------------------------------------------------------------------------------
+# Pre-requisites
+# Provisions all pre-req AWS Services for AWS Config Remediations via Systems Manager Automations
+#
+# ---------------------------------------------------------------------------------------------
+
+# Bucket Policy for CloudTrail S3 Bucket. Restrict to allow access to only SSL transport.
+  SCBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SCS3CloudTrailBucket
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - "s3:*"
+            Effect: "Allow"
+            Resource:
+              - !Sub arn:aws:s3:::${SCS3CloudTrailBucket}
+              - !Sub arn:aws:s3:::${SCS3CloudTrailBucket}/*
+            Principal:
+              AWS:
+              - !Ref AWS::AccountId
+          -
+            Action:
+              - "s3:*"
+            Effect: "Allow"
+            Resource:
+              - !Sub arn:aws:s3:::${SCS3CloudTrailBucket}
+              - !Sub arn:aws:s3:::${SCS3CloudTrailBucket}/*
+            Principal:
+              Service:
+              - cloudtrail.amazonaws.com
+          -
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource:
+              - !Sub arn:aws:s3:::${SCS3CloudTrailBucket}
+              - !Sub arn:aws:s3:::${SCS3CloudTrailBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+
+# S3 Bucket to store CloudTrail logs
+  SCS3CloudTrailBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "s3-sc-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      AccessControl: BucketOwnerFullControl
+      LifecycleConfiguration:
+        Rules:
+          -
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 3
+            NoncurrentVersionExpirationInDays: 3
+            Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        -
+          Key: Description
+          Value: S3 Bucket for CloudTrail Logs
+      VersioningConfiguration:
+        Status: Enabled
+
+
+# SSM Automation Role
+  SCAutomationAssumeRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub servicecatalog-automationassumerole-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ssm.amazonaws.com
+                - events.amazonaws.com
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+
+#CloudTrail CW Log Group
+  SCCloudTrailLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub ServiceCatalogLogGroup-${AWS::Region}
+      RetentionInDays: 1827
+
+
+# Cloud Watch Role
+  SCCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ServiceCatalog_CloudWatchLogs_Role-${AWS::Region}
+      Policies:
+      - PolicyName: SCCloudWatchLogsRolePolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:StartAutomationExecution
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - iam:PassRole
+            - ec2:*
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - cloudtrail:UpdateTrail
+            - securityhub:UpdateFindings
+            Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: 
+            Service:
+              - cloudtrail.amazonaws.com 
+          Action:
+          - sts:AssumeRole
+
+#------------------------------------------------------------------------------------------
+# Misconfigured Resources:
+#  -- KMS Key with Key Rotation Disabled
+#  -- CloudTrail with Log File Validation Disabled and CloudWatch Logs Disabled
+#  -- Unused Elastic IP 
+#-------------------------------------------------------------------------------------------
+
+# Misconfigured KMS CMK
+  MisconfiguredKmsKey:
+    Type: 'AWS::KMS::Key'
+    Properties:
+      EnableKeyRotation: false
+      Description: 'Test Key Rotation'
+      Enabled: true
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS:
+                'Fn::Join':
+                  - ''
+                  - - 'arn:aws:iam::'
+                    - Ref: 'AWS::AccountId'
+                    - ':root'
+            Action: 'kms:*'
+            Resource: '*'
+
+# S3 Bucket for Misconfigured CloudTrail
+  SCS3MisconfiguredCloudTrailBucket: 
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties: {}
+  MisconfiguredBucketPolicy: 
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: 
+        Ref: SCS3MisconfiguredCloudTrailBucket
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Sid: "AWSCloudTrailAclCheck"
+            Effect: "Allow"
+            Principal: 
+              Service: "cloudtrail.amazonaws.com"
+            Action: "s3:GetBucketAcl"
+            Resource: 
+              !Sub |-
+                arn:aws:s3:::${SCS3MisconfiguredCloudTrailBucket}
+          - 
+            Sid: "AWSCloudTrailWrite"
+            Effect: "Allow"
+            Principal: 
+              Service: "cloudtrail.amazonaws.com"
+            Action: "s3:PutObject"
+            Resource:
+              !Sub |-
+                arn:aws:s3:::${SCS3MisconfiguredCloudTrailBucket}/AWSLogs/${AWS::AccountId}/*
+            Condition: 
+              StringEquals:
+                s3:x-amz-acl: "bucket-owner-full-control"
+
+  MisconfiguredTrail: 
+    DependsOn: 
+      - MisconfiguredBucketPolicy
+    Type: AWS::CloudTrail::Trail
+    Properties: 
+      TrailName: 'ReinforceTrail'
+      EnableLogFileValidation: false
+      S3BucketName: 
+        Ref: SCS3MisconfiguredCloudTrailBucket
+      IsLogging: true
+      IsMultiRegionTrail: false
+
+  MisconfiguredEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+
+#------------------------------------------------------------------------------------------
+# On Demand Config Evaluation Lambda for AWS Config Rules:
+#  -- Provides a live game experience to the user
+#  -- Triggers Detection at 2 min intervals of misconfigured resources via AWS Config
+#-------------------------------------------------------------------------------------------
+  
+  OnDemandConfigEvalEventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Name: OnDemandConfigEvalEventRule
+      Description: "Trigger On Demand Evaluation of Config Rules for Game Day"
+      State: "ENABLED"
+      ScheduleExpression: "rate(2 minutes)"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "OnDemandConfigEvalLambda"
+              - "Arn"
+          Id: "OnDemandConfigEval"
+
+  PermissionForEventsToInvokeConfigLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt "OnDemandConfigEvalLambda.Arn"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt "OnDemandConfigEvalEventRule.Arn"
+
+  OnDemandConfigEvalLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import json
+          import os
+          import boto3
+          import logging
+          LOGGER = logging.getLogger()
+          LOGGER.setLevel(logging.INFO)
+          def lambda_handler(event, context):
+              try:
+                  ruleName1 = os.environ['ruleName1']
+                  ruleName2 = os.environ['ruleName2']
+                  ruleName3 = os.environ['ruleName3']
+                  ruleName4 = os.environ['ruleName4']
+                  ruleName5 = os.environ['ruleName5']
+                  ruleName6 = os.environ['ruleName6']
+                  client = boto3.client('config')
+                  response = client.start_config_rules_evaluation(
+                      ConfigRuleNames=[
+                      ruleName1,
+                      ruleName2,
+                      ruleName3,
+                      ruleName4,
+                      ruleName5,
+                      ruleName6
+                      ]
+                  )
+              except Exception as e:
+                  print(e)
+                  print("AWS Config Evaluation execution error")
+                  raise
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt "OnDemandConfigEvalLambdaRole.Arn"
+      Runtime: python3.7
+      Timeout: 60
+      Environment:
+        Variables:
+          ruleName1: 'cloud_trail_cloud_watch_logs_enabled'
+          ruleName2: 'cloud-trail-log-file-validation-enabled'
+          ruleName3: 'ReleaseElasticIP'
+          ruleName4: 'cis-iam-password-policy'
+          ruleName5: 'cmk-backing-key-rotation-enabled'
+          ruleName6: 'RestrictDefaultSecurityGroup'
+
+  # On Demand Config Eval Role
+  OnDemandConfigEvalLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub reinforce-OnDemandConfigEvalLambdaRole-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+
+#------------------------------------------------------------------------------------------
+# Service Catalog Portfolio that contains the ConfigRemediations Conformance Pack Product
+#  
+#-------------------------------------------------------------------------------------------
+
+  ConfigRemediationsPortfolio:
+    Type: 'AWS::ServiceCatalog::Portfolio'
+    Properties:
+      AcceptLanguage: en
+      Description: AWS ConfigRemediations Compliance Portfolio
+      DisplayName: AWS ConfigRemediations Compliance Portfolio
+      ProviderName: AWS
+
+  ConfigRemediationsCompliance:
+    Type: 'AWS::ServiceCatalog::CloudFormationProduct'
+    Properties:
+      AcceptLanguage: en
+      Description: This product deploys AWS Config Remediations as a Service Catalog Product
+      Distributor: AWS
+      Name: AWS ConfigRemediations Compliance Product
+      Owner: AWS
+      SupportEmail: email@mycompany.com
+      SupportUrl: 'https://www.mycompany.com'
+      SupportDescription: >-
+        AWS ConfigRemediations Compliance Product
+      ProvisioningArtifactParameters:
+        - Description: This is version 1.0 of the AWS ConfigRemediations Compliance Product
+          Name: Version - 1.0
+          Info:
+            LoadTemplateFromURL: "https://s3-reinforce-servicecatalog-presecriptivecompliance.s3.amazonaws.com/aws-servicecatalog-configremediations.yml"
+
+  ConfigRemediationsConfPackPortfolioAssociation:
+    Type: 'AWS::ServiceCatalog::PortfolioProductAssociation'
+    Properties:
+      PortfolioId: !Ref ConfigRemediationsPortfolio
+      ProductId: !Ref ConfigRemediationsCompliance
+
+  TeamMemberEnduserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: TeamMemberEnduserRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSServiceCatalogEndUserFullAccess
+      Path: /      
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - 'sts:AssumeRole'
+
+  TeamMemberEnduserRolePortfolioAssociation:
+    Type: 'AWS::ServiceCatalog::PortfolioPrincipalAssociation'
+    Properties:
+      PrincipalARN: !Sub 'arn:aws:iam::${AWS::AccountId}:role/TeamRole'
+      PortfolioId: !Ref ConfigRemediationsPortfolio
+      PrincipalType: IAM
+
+
+#------------------------------------------------------------------------------------------
+# Custom Systems Manager Automation Documents for AWS Config Remediation:
+#  -- Small sampling of PCI and CIS violations
+#-------------------------------------------------------------------------------------------
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.KMS.1] Customer master key (CMK) rotation should be enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  SCCustomCMKBackingKeyRotationCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-SCCMKBackingKeyRotationCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref SCAutomationAssumeRole
+        parameters:
+          KMSKeyArn:
+            type: String
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref SCAutomationAssumeRole
+        mainSteps:
+          - name: rotatebackingkey
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: rotatebackingkey_handler
+              Script: "def rotatebackingkey_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('kms')\r\n\r\n  KMSKeyArn = events['KMSKeyArn']\r\n\r\n  response = client.enable_key_rotation(\r\n    KeyId=KMSKeyArn\r\n  )"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                KMSKeyArn: '{{KMSKeyArn}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CloudTrail.4] CloudTrail trails should be integrated with CloudWatch Logs
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  SCCustomCloudTrailUpdateCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-SCCloudTrailUpdateCF
+      Content:
+        description: CIS 2.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref SCAutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref SCAutomationAssumeRole
+          SCCloudTrailLogGroupArn:
+            type: String
+            default:
+              Fn::Join:
+                  - ''
+                  - - 'arn:aws:logs:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - !Sub ':log-group:${SCCloudTrailLogGroup}:*'
+          SCCloudWatchRoleArn:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref SCCloudWatchRole
+          TrailName:
+            type: String
+        mainSteps:
+          - name: UpdateCloudTrail
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updatetrail_handler
+              Script: "def updatetrail_handler(events, context):\r\n  import boto3\r\n  cloudtrail = boto3.client('cloudtrail')\r\n\r\n  CloudTrailLogGroupArn = events['SCCloudTrailLogGroupArn']\r\n  CloudWatchRoleArn = events['SCCloudWatchRoleArn']\r\n  TrailName = events['TrailName']\r\n\r\n  response = cloudtrail.update_trail(\r\n    Name=TrailName,\r\n    IncludeGlobalServiceEvents=True,\r\n    IsMultiRegionTrail=True,\r\n    EnableLogFileValidation=True,\r\n    CloudWatchLogsLogGroupArn=CloudTrailLogGroupArn,\r\n    CloudWatchLogsRoleArn=CloudWatchRoleArn\r\n  )\r\n"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                SCCloudTrailLogGroupArn: '{{SCCloudTrailLogGroupArn}}'
+                SCCloudWatchRoleArn: '{{SCCloudWatchRoleArn}}'
+                TrailName: '{{TrailName}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI IAM 4– Updates IAM Account Settings Password Policy
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  SCCustomIAMPasswordUpdateCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-SCIAMPasswordUpdateCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref SCAutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref SCAutomationAssumeRole
+        mainSteps:
+          - name: updatepasswordpolicy
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updateiampolicy_handler
+              Script: |
+                def updateiampolicy_handler(events, context):
+                  import boto3
+                  iam = boto3.client('iam')
+                  
+                  response = iam.update_account_password_policy(
+                                AllowUsersToChangePassword=True,
+                                HardExpiry=True,
+                                MaxPasswordAge=90 ,
+                                MinimumPasswordLength=14,
+                                PasswordReusePrevention=24,
+                                RequireLowercaseCharacters=True,
+                                RequireNumbers=True,
+                                RequireSymbols=True,
+                                RequireUppercaseCharacters=True)
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CloudTrail.3] CloudTrail log file validation should be enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  SCCustomLogFileValidationCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-SCLogFileValidationCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref SCAutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref SCAutomationAssumeRole
+          SCCloudTrailLogGroupArn:
+            type: String
+            default:
+              Fn::Join:
+                  - ''
+                  - - 'arn:aws:logs:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - !Sub ':log-group:${SCCloudTrailLogGroup}:*'
+          SCCloudWatchRoleArn:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref SCCloudWatchRole
+          TrailName:
+            type: String
+        mainSteps:
+          - name: EnableLogFileValidation
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updatetrail_handler
+              Script: "def updatetrail_handler(events, context):\r\n  import boto3\r\n  cloudtrail = boto3.client('cloudtrail')\r\n\r\n  CloudTrailLogGroupArn = events['SCCloudTrailLogGroupArn']\r\n  CloudWatchRoleArn = events['SCCloudWatchRoleArn']\r\n  TrailName = events['TrailName']\r\n\r\n  response = cloudtrail.update_trail(\r\n    Name=TrailName,\r\n    IncludeGlobalServiceEvents=True,\r\n    IsMultiRegionTrail=True,\r\n    EnableLogFileValidation=True,\r\n    CloudWatchLogsLogGroupArn=CloudTrailLogGroupArn,\r\n    CloudWatchLogsRoleArn=CloudWatchRoleArn\r\n  )   "
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                SCCloudTrailLogGroupArn: '{{SCCloudTrailLogGroupArn}}'
+                SCCloudWatchRoleArn: '{{SCCloudWatchRoleArn}}'
+                TrailName: '{{TrailName}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.2] VPC default security group should prohibit inbound and outbound traffic
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  SCRestrictSecurityGroupPublicAccess:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-SCRestrictSecurityGroup
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref SCAutomationAssumeRole
+        parameters:
+          groupId:
+            type: String
+          IpAddressToBlock:
+            type: String
+            default: '0.0.0.0/0'
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref SCAutomationAssumeRole
+        mainSteps:
+          - name: RestrictSecurityGroup
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: restrict_sg
+              Script: "def restrict_sg(events, context):\r\n  import boto3\r\n  import json\r\n  import os\r\n  ec2 = boto3.resource('ec2')\r\n  defaultSecGroupId = events['groupId']\r\n  try:\r\n      defaultSG = ec2.SecurityGroup(defaultSecGroupId)\r\n      defaultIngress = defaultSG.ip_permissions\r\n      defaultEgress = defaultSG.ip_permissions_egress\r\n      revokeIngress = defaultSG.revoke_ingress(IpPermissions=defaultIngress)\r\n      revokeEgress = defaultSG.revoke_egress(IpPermissions=defaultEgress)\r\n  except Exception as e:\r\n      print(e)"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                groupId: '{{groupId}}'
+                IpAddressToBlock: '{{IpAddressToBlock}}'
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.4] Unused EC2 EIPs should be removed
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  SCReleaseEIP:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-SCReleaseEIP
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref SCAutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref SCAutomationAssumeRole
+          allocationId:
+            type: String       
+        mainSteps:
+          - name: ReleaseEIP
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: script_handler
+              Script: "def script_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('ec2')\r\n\r\n  allocationId = events['allocationId']\r\n\r\n  response = client.release_address(\r\n    AllocationId= allocationId\r\n  )"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                allocationId: '{{allocationId}}'
+

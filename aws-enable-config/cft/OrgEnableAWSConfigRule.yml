@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Enable AWS Config Managed Rule
+
+Parameters:
+  OrganizationConfigRuleName:
+    Type: String
+    Default: 'EnableCloudTrail'
+    Description: Config Rule Name for CLOUD_TRAIL_ENABLED rule identifier
+
+  ExcludedAccounts:
+    Type: String
+    Default: '1234123412341234'
+    Description: 12 Digit AWS Account ID
+  
+
+Resources:
+  EnableOrganizationConfigRule:
+      Type: "AWS::Config::OrganizationConfigRule"
+      Properties:
+          OrganizationConfigRuleName: !Ref OrganizationConfigRuleName
+          OrganizationManagedRuleMetadata:
+              RuleIdentifier: "CLOUD_TRAIL_ENABLED"
+              Description: "Cloudtrail enabled rule"
+          ExcludedAccounts:
+          - !Ref ExcludedAccounts
+
+
