@@ -22,6 +22,18 @@
 2. Launch this template from the aggregator account. Creates an AWS Config Aggregator from the aggregator account. It uses a service linked role that retrieves AWS Organization details associated with the aggregator account.
 	- This creates an IAM role that attaches the AWSConfigRoleForOrganizations managed policy to your IAM role. Attaching this policy allows AWS Config obtain Organization details associated with the aggregator account.
 
+## Option 3: Use AccountEnableRecorderAndAggregator-v1.yaml - Create Config Aggregator in aggregator account and add authorization in individual source region(s) of that account
+
+1. Ensure Config in all source regions of the aggregator account
+2. Launch this template from the aggregator account. Provide input for the following parameters:
+	*AggregatorAccount*: AWS Account ID of the aggregator account
+	*AggregatorRegion*: AWS region of the aggregator
+	*SourceRegion1:* AWS region to aggregate
+	*SourceRegion2:* AWS region to aggregate
+
+
+
+
 
 
 
