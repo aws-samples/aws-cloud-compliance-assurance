@@ -18,8 +18,7 @@
 
 ## Option 1: Enable Config Rule in an AWS Organization  - Sample
 
-1. Launch the sample 'OrgEnableConfigRule.yml' from the management account of your AWS Organization.
-1. Modify this snippet for deploying other Config managed rules
+1. Launch the sample 'OrgEnableConfigRule.yml' template from the management account of your AWS Organization. Provide the AWS Config Managed Rule identifier as a parameter. Modify this snippet for deploying other Config managed rules
 
 ## Option 2: Enable Config Rule in multiple accounts or regions (not using AWS Organizations) - Sample
 
