@@ -13,19 +13,14 @@ Parameters:
     Default: 's3://bucketname/prefix'
     Description: s3 template uri that hosts the conformance pack template
 
-  DeliveryS3Bucket:
-    Type: String
-    Default: awsconfigconforms-s3-<accountid>-<region>
-    Description: S3 Delivery Bucket to store conformance pack artifacts
-  
 
 Resources:
   EnableOrganizationConfigRule:
       Type: AWS::Config::OrganizationConformancePack
       Properties:
           OrganizationConformancePackName: !Ref OrganizationConformancePackName
-          DeliveryS3Bucket: !Ref DeliveryS3Bucket
           TemplateS3Uri: !Ref TemplateS3Uri
+
 
 
 

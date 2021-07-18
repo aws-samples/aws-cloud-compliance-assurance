@@ -6,7 +6,7 @@
 
 ## Option 1 - Deploy an AWS Config Conformance Pack in an AWS Organization - Sample
 
-1. Launch the sample 'OrgEnableConformancePack.yml' template from the management account of your AWS Organization. Modify this snippet for deploying other Conformance Packs.
+1. Launch the sample 'OrgEnableConformancePack.yml' template from the management account of your AWS Organization. The template takes the 'TemplateS3Uri' as a parameter which is the S3 template URI that hosts the conformance pack template. You can upload the sample 'org-confpack-pci'  conformance pack template to S3 and test an organizational deployment of that conformance pack.  Upload other conformance pack templates to S3 and use this template as a sample to deploy organization conformance packs.
 
 
 ## Option 2: Deploy an AWS Config Conformance Pack in multiple accounts or regions ( not using AWS Organizations) - Sample
