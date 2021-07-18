@@ -6,11 +6,6 @@ Parameters:
     Type: String
     Default: 'EnableCloudTrail'
     Description: Config Rule Name for CLOUD_TRAIL_ENABLED rule identifier
-
-  ExcludedAccounts:
-    Type: String
-    Default: '1234123412341234'
-    Description: 12 Digit AWS Account ID
   
 
 Resources:
@@ -21,7 +16,5 @@ Resources:
           OrganizationManagedRuleMetadata:
               RuleIdentifier: "CLOUD_TRAIL_ENABLED"
               Description: "Cloudtrail enabled rule"
-          ExcludedAccounts:
-          - !Ref ExcludedAccounts
-
+        
 
