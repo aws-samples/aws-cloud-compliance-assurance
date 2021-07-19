@@ -13,9 +13,6 @@ Metadata:
         Parameters:
           - AggregatorAccount
           - AggregatorRegion
-          - SourceAccount
-          - SourceRegion1
-          - SourceRegion2
     ParameterLabels:
       GlobalResourceTypesRegion:
         default: Global resource types region
@@ -23,12 +20,11 @@ Metadata:
         default: Aggregator account
       AggregatorRegion:
         default: Aggregator account
-      SourceAccount:
-        default: Source account
       SourceRegion1:
-        default: Source region1
+        default: Source region 1
       SourceRegion2:
-        default: Source region2
+        default: Source region 2
+
 
 Parameters:
   GlobalResourceTypesRegion:
@@ -42,9 +38,6 @@ Parameters:
     Type: String
     Default: us-east-1
     Description: AWS region of the aggregator
-  SourceAccount:
-    Type: String
-    Description: Source account to aggregate
   SourceRegion1:
     Type: String
     Description: 1st region to aggregate
@@ -70,10 +63,6 @@ Conditions:
     - !Equals
       - !Ref AggregatorRegion
       - !Ref AWS::Region
-  CreateAuthorization: !Not
-    - !Equals
-      - !Ref AggregatorAccount
-      - !Ref AWS::AccountId
   CreateConfigRecorder: !Equals 
     - !Ref CreateRecorder
     - 'yes'
@@ -166,6 +155,7 @@ Resources:
         Owner: AWS
         SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED
 
+
   ConfigAggregator:
     Type: AWS::Config::ConfigurationAggregator
     Condition: CreateAggregator
@@ -173,14 +163,8 @@ Resources:
       ConfigurationAggregatorName: default
       AccountAggregationSources:
         - AccountIds: 
-            - !Ref SourceAccount
+            - !Ref AggregatorAccount
           AwsRegions: 
             - !Ref SourceRegion1
             - !Ref SourceRegion2
 
-  AggregationAuthorization:
-    Type: AWS::Config::AggregationAuthorization
-    Condition: CreateAuthorization
-    Properties:
-      AuthorizedAccountId: !Ref AggregatorAccount
-      AuthorizedAwsRegion: !Ref AggregatorRegion
