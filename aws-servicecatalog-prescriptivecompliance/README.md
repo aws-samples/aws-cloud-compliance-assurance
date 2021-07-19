@@ -10,7 +10,7 @@ Standardize the provisioning and set up of configuration compliance using AWS Se
 
 1. Launch the sample 'aws-servicecatalog-prescriptivecompliance.yml' template from any account in your organization where Config is already enabled.
 2. Provisions a AWS Service Catalog Portfolio with an AWS Config Remediations Product.
-   - The AWS Config Remediations Product provides automated detection with AWS Config and Remediations with AWS Systems Manager
+   - The AWS Config Remediations Product provides automated detection with AWS Config and automated remediations with custom AWS Systems Manager documents
    - Provisions all pre-reqs for AWS Systems Manager Remediations
    - Provisions Custom AWS Systems Manager Automation Documents to provide Automated Remediations for AWS Config
    - For demo purposes (for GameDay, Reinforce etc) the template provisions misconfigured resources to trigger an attack and then also provisions on demand evaluations for AWS Config to detect and then remediate the attack with provisioned custom SSM remediations
