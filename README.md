@@ -1,3 +1,5 @@
+# Configuration, compliance and audit using the Three Lines of Defense Model 
+
 This reference architecture will help you get started with the three
 lines of defense model using AWS Platforms. Each directory in the
 repository contains its own readme file with more details. This readme
