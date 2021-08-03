@@ -136,7 +136,7 @@ framework that is comprised of custom AWS Audit Manager control sets.
 The Audit Manager control set contains custom AWS Audit Manager controls
 related to AWS Config Conformance Pack based Config rules.
 
-![](aws-auditmanager-conformancepack/images/arch-diagram.png){width="6.5in" height="3.0236111111111112in"}
+![](aws-auditmanager-conformancepack/images/arch-diagram.png)
 
 AWS Audit Manager -- Security Hub
 ---------------------------------
@@ -151,7 +151,7 @@ spans across Security Hub compliance checks and is specific to a
 security related domain -- for e.g. Identity Management or Network
 Monitoring.
 
-![](aws-auditmanager-securityhub/images/arch-diagram.png){width="6.5in" height="3.015277777777778in"}
+![](aws-auditmanager-securityhub/images/arch-diagram.png)
 
 AWS Config Aggregator
 ---------------------
@@ -163,7 +163,7 @@ accounts and regions or from an AWS organization. All accounts must have
 AWS Config enabled (See the solution to enable AWS Config).
 
 ![ An aggregator collects AWS Config data from multiple accounts and
-regions. ](aws-config-aggregator/images/aggregator.png){width="6.5in" height="2.59375in"}
+regions. ](aws-config-aggregator/images/aggregator.png)
 
 AWS Enable Config
 -----------------
@@ -174,8 +174,7 @@ Manager . See
 [here](https://docs.aws.amazon.com/systems-manager/latest/userguide/quick-setup-config.html)
 for more information
 
-![product-page-diagram-Config\_how-it-works](aws-enable-config/images/config.png){width="6.5in"
-height="3.0618055555555554in"}
+![product-page-diagram-Config\_how-it-works](aws-enable-config/images/config.png)
 
 AWS Organizational Conformance Pack 
 -----------------------------------
@@ -191,7 +190,7 @@ The solution implemented here leverages the AWS Security Hub service and
 provides customers with an AWS native implementation for automated
 remediations for these CIS violations detected by AWS Security Hub.
 
-![](aws-remediate-cis-securityhub/images/arch-diagram.png){width="6.5in" height="2.8777777777777778in"}
+![](aws-remediate-cis-securityhub/images/arch-diagram.png)
 
 AWS Service Catalog prescriptive compliance 
 -------------------------------------------
