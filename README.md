@@ -3,33 +3,32 @@ lines of defense model using AWS Platforms. Each directory in the
 repository contains its own readme file with more details. This readme
 explains the purpose of the samples and provides and overview.
 
-[Overview 1](#overview)
++ [Overview ](#overview)
 
-[Managing Risk 2](#managing-risk)
++ [Managing Risk ](#managing-risk)
 
-[Overseeing Risk 2](#overseeing-risk)
++ [Overseeing Risk ](#overseeing-risk)
 
-[Providing assurance of risk management.
-3](#providing-assurance-of-risk-management.)
++ [Providing assurance of risk management.
+](#providing-assurance-of-risk-management.)
 
-[Contents 3](#contents)
++ [Contents ](#contents)
+	- [AWS Audit Manager -- Conformance pack
+](#aws-audit-manager-conformance-pack)
 
-[AWS Audit Manager -- Conformance pack
-3](#aws-audit-manager-conformance-pack)
+	- [AWS Audit Manager -- Security Hub ](#aws-audit-manager-security-hub)
 
-[AWS Audit Manager -- Security Hub 3](#aws-audit-manager-security-hub)
+	- [AWS Config Aggregator ](#aws-config-aggregator)
 
-[AWS Config Aggregator 4](#aws-config-aggregator)
+	- [AWS Enable Config ](#aws-enable-config)
 
-[AWS Enable Config 5](#aws-enable-config)
+	- [AWS Organizational Conformance Pack
+](#aws-organizational-conformance-pack)
 
-[AWS Organizational Conformance Pack
-5](#aws-organizational-conformance-pack)
+	- [AWS Remediation CIS Security Hub ](#aws-remediation-cis-security-hub)
 
-[AWS Remediation CIS Security Hub 6](#aws-remediation-cis-security-hub)
-
-[AWS Service Catalog prescriptive compliance
-6](#aws-service-catalog-prescriptive-compliance)
+	- [AWS Service Catalog prescriptive compliance
+](#aws-service-catalog-prescriptive-compliance)
 
 Overview 
 ========
