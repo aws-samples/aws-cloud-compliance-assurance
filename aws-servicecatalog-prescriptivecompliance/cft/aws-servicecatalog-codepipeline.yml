@@ -1,0 +1,318 @@
+
+# ---------------------------------------------------------------------------------------------
+## Template 1 of 3 - AWS CodePipeline in Hub Account that allows Service Catalog creation and update in Spoke Accounts
+#
+#
+#  1- Creates a Code Pipeline in Hub Account that is triggered via code checkin in a Git repo
+#          - Pre-req - Git repo contains source templates ( compliance template)
+#  2- CodePipeline (CodeCommit) uploads source templates to a CodePipeline Artifact repository S3 
+#  3- CodePipeline (CodeBuild)  copies source templates to a staging S3 bucket 
+#  4- CodePipeline (CodeBuild) uses CloudFormation StackSets to deploy Service Catalog Portfolio to Spoke Accounts
+#   - Uses Staging S3 as input for the source templates that are provisioned as compliance products in the Service Catalog Portfolio 
+
+#
+## @kmmahaj 
+##
+## License:
+## This code is made available under the MIT-0 license. See the LICENSE file.
+# ------------------------------------------------------------...............................................
+
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: Uses AWS CodePipeline/CodeDeploy to update AWS Service Catalog Portfolio
+
+## Parameters
+Parameters:
+
+  RepositoryName:
+    Description: CodeCommit Repository for Config Remediation CloudFormation templates
+    Type: String
+    Default: ConfigremediationRepository
+
+  BranchName:
+    Description: Branch in the CodeCommit Repsitory for the Config Remediation CloudFormation templates
+    Type: String
+    Default: master
+
+  S3StagingBucketPrefix:
+    Description: Prefix for the S3 Staging Bucket that stages the code copied from code commit
+    Type: String
+    Default: 's3-configremediation-<accountid>-<region>'
+
+
+## Resources
+Resources:
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# This section uses AWS CodePipeline to update AWS Service Catalog with the checkedin template
+# 
+# Uses AWS CodeCommit for event driven code checkins from a local Git repo. 
+# Uses AWS CodeBuild to update Service Catalog with the checked in TrendMicro templates
+# 
+# ------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+
+# Bucket that stores source templates - Trend Micro templates
+# Bucket gets populated during pipeline execution (CodeCommit). Triggered via Git checkin.
+  CodePipelineArtifactStoreBucket:
+    Type: 'AWS::S3::Bucket'
+  CodePipelineArtifactStoreBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref CodePipelineArtifactStoreBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: DenyUnEncryptedObjectUploads
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:PutObject'
+            Resource: !Join 
+              - ''
+              - - !GetAtt 
+                  - CodePipelineArtifactStoreBucket
+                  - Arn
+                - /*
+            Condition:
+              StringNotEquals:
+                's3:x-amz-server-side-encryption': 'aws:kms'
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: !Join 
+              - ''
+              - - !GetAtt 
+                  - CodePipelineArtifactStoreBucket
+                  - Arn
+                - /*
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+  
+  AmazonCloudWatchEventRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: cwe-pipeline-execution
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 'codepipeline:StartPipelineExecution'
+                Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:compliance-pipeline"
+
+# Git commit triggers CodePipeline execution
+  AmazonCloudWatchEventRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      EventPattern:
+        source:
+          - aws.codecommit
+        detail-type:
+          - CodeCommit Repository State Change
+        resources:
+          - !Sub "arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${RepositoryName}"
+        detail:
+          event:
+            - referenceCreated
+            - referenceUpdated
+          referenceType:
+            - branch
+          referenceName:
+            - !Ref BranchName
+      Targets:
+        - Arn: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:compliance-pipeline"
+          RoleArn: !GetAtt 
+            - AmazonCloudWatchEventRole
+            - Arn
+          Id: compliance-pipeline
+
+#Pipeline
+  TrendMicroPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      Name: compliance-pipeline
+      RoleArn: !GetAtt 
+        - CodePipelineServiceRole
+        - Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: TrendMicroSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: 1
+                Provider: CodeCommit
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                BranchName: !Ref BranchName
+                RepositoryName: !Ref RepositoryName
+                PollForSourceChanges: false
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: TrendMicroBuild
+              InputArtifacts:
+                - Name: SourceOutput
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CodePipelineArtifactStoreBucket
+
+  CodePipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+                - codepipeline.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Policies:
+      - PolicyName: Codepipeline-base-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 
+                - 'codebuild:*'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 's3:GetObject'
+                - 's3:PutObject'
+                - 's3:GetObjectVersion'
+                - 's3:GetBucketVersioning'
+                - 's3:GetBucketAcl'
+                - 's3:GetBucketLocation'
+                - 's3:ListBucket'
+                - 's3:CreateBucket'
+                - 's3:DeleteBucket'
+                - 's3:DeleteBucketPolicy'
+                - 's3:GetBucketPolicy'
+                - 's3:GetBucketPolicyStatus'
+                - 's3:PutBucketPolicy'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'cloudformation:DescribeStackResource'
+                - 'cloudformation:DescribeStackResources'
+                - 'cloudformation:GetTemplate'
+                - 'cloudformation:ListStackSets'
+                - 'cloudformation:DescribeStackEvents'
+                - 'cloudformation:DescribeStacks'
+                - 'cloudformation:DescribeStackSet'
+                - 'cloudformation:CreateStack'
+                - 'cloudformation:DeleteStack'
+                - 'cloudformation:UpdateStack'
+                - 'cloudformation:CreateStackSet'
+                - 'cloudformation:UpdateStackSet'
+                - 'cloudformation:CreateStackInstances'
+                - 'cloudformation:UpdateStackInstances'
+                - 'cloudformation:DescribeStackEvents'
+                - 'cloudformation:ListStacks'
+                - 'cloudformation:ValidateTemplate'
+                - 'cloudformation:SetStackPolicy'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'logs:CreateLogGroup'
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 's3:*'
+                - 'iam:PassRole'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'codecommit:CancelUploadArchive'
+                - 'codecommit:GetBranch'
+                - 'codecommit:GetCommit'
+                - 'codecommit:GetUploadArchiveStatus'
+                - 'codecommit:UploadArchive'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'codedeploy:CreateDeployment'
+                - 'codedeploy:GetApplicationRevision'
+                - 'codedeploy:GetDeployment'
+                - 'codedeploy:GetDeploymentConfig'
+                - 'codedeploy:RegisterApplicationRevision'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'codebuild:BatchGetBuilds'
+                - 'codebuild:StartBuild'
+                - 'codebuild:StopBuild'
+                - 'codebuild:BatchGetProjects'
+                - 'codebuild:BatchGetBuilds'
+                - 'codebuild:ListBuildsForProject'
+                - 'codebuild:ListBuilds'
+                - 'codebuild:ListProjects'
+                - 'codebuild:ListCuratedEnvironmentImages'
+                - 'codebuild:ListSourceCredentials'
+                - 'codecommit:GetBranch'
+                - 'codecommit:GetCommit'
+                - 'codecommit:UploadArchive'
+                - 'codecommit:GetUploadArchiveStatus'
+                - 'codecommit:CancelUploadArchive'
+              Resource: '*'
+
+        
+  ComplianceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /codepipeline/compliance-servicecatalog-${AWS::StackName}
+
+  CodeBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+        - Name: AWS_ACCOUNT_ID
+          Type: PLAINTEXT
+          Value: !Ref 'AWS::AccountId'
+        - Name: STAGING_BUCKET
+          Type: PLAINTEXT
+          Value: !Ref S3StagingBucketPrefix
+        Image: 'aws/codebuild/ubuntu-base:14.04'
+        PrivilegedMode: true # required to build Docker images
+        Type: LINUX_CONTAINER  
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Ref ComplianceLogGroup
+          Status: ENABLED
+      ServiceRole: !GetAtt CodePipelineServiceRole.Arn
+      Source:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 10
