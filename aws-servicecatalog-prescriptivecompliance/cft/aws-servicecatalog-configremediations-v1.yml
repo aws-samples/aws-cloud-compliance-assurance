@@ -1,0 +1,243 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Service Catalog Compliance Remediations
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  
+# Reinforce 21 - Prescriptive Compliance
+# To be deployed by a Team Member in their Team Account
+# Provides automated detection and remediation for misconfigured resources
+# ---Integrates AWS Config Managed Rules with Custom AWS System Manager Automation Documents
+# 
+# 
+# @kmmahaj
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Resources:
+  
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.KMS.1 – Ensure rotation for customer created CMKs is enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  
+  CMKBackingKeyRotation:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      Description: >-
+        PCI.KMS.1 – Ensure rotation for customer created CMKs is enabled
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::KMS::Key"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CMK_BACKING_KEY_ROTATION_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CMKBackingKeyRotationRemediation:
+    DependsOn: CMKBackingKeyRotation
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      ResourceType: "AWS::KMS::Key"
+      TargetId: "Custom-SCCMKBackingKeyRotationCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue SCAutomationAssumeRoleArn
+        KMSKeyArn:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.CloudTrail.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CloudTrailCloudWatchLogsEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud_trail_cloud_watch_logs_enabled
+      Description: >-
+        PCI.CloudTrail.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_CLOUD_WATCH_LOGS_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailCloudWatchLogsRemediation:
+    DependsOn: CloudTrailCloudWatchLogsEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloud_trail_cloud_watch_logs_enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "Custom-SCCloudTrailUpdateCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue SCAutomationAssumeRoleArn
+        SCCloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue SCCloudTrailLogGroupArn
+        SCCloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue SCCloudWatchRoleArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+    
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.CloudTrail.3 – Ensure CloudTrail log file validation is enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  CloudTrailLogFileValidationEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      Description: >-
+        PCI.CloudTrail.3 – Ensure CloudTrail log file validation is enabled
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_LOG_FILE_VALIDATION_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailLogFileValidationRemediation:
+    DependsOn: CloudTrailLogFileValidationEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "Custom-SCLogFileValidationCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue SCAutomationAssumeRoleArn
+        SCCloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue SCCloudTrailLogGroupArn
+        SCCloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue SCCloudWatchRoleArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.4] Unused EC2 EIPs should be removed
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  ReleaseElasticIP:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: ReleaseElasticIP
+      Description: >-
+        [PCI.EC2.4] Unused EC2 EIPs should be removed
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::EC2::EIP"
+      Source:
+        Owner: AWS
+        SourceIdentifier: EIP_ATTACHED
+  ReleaseElasticIPRemediation:
+    DependsOn: ReleaseElasticIP
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: ReleaseElasticIP
+      ResourceType: "AWS::EC2::EIP"
+      TargetId: "AWS-ReleaseElasticIP"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue SCAutomationAssumeRoleArn
+        AllocationId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 1.5,1.6,1.7.1.8,1.9,1.10,1.11. – IAM Account Settings related to Password Policy
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  IAMPasswordPolicyEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cis-iam-password-policy
+      Description: >-
+        CIS 1.5-1.11 – Ensures IAM Account Settings are compliant with CIS
+      InputParameters:
+        RequireUppercaseCharacters: true
+        RequireLowercaseCharacters: true
+        RequireSymbols: true
+        RequireNumbers: true
+        MinimumPasswordLength: 14
+        PasswordReusePrevention: 24
+        MaxPasswordAge: 90
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_PASSWORD_POLICY
+      MaximumExecutionFrequency: One_Hour
+  IAMPasswordPolicyRemediation:
+    DependsOn: IAMPasswordPolicyEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cis-iam-password-policy
+      TargetId: "Custom-SCIAMPasswordUpdateCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue SCAutomationAssumeRoleArn
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
