@@ -13,6 +13,12 @@
 # ---------------------------------------------------------------------------------------------------
 
 
+Parameters:
+  S3StagingBucketURL:
+    Type: String
+    Description: S3 Staging Bucket Prefix that contains the Config Remediations Compliance template
+    Default: 'https://s3-configremediations-<accountid>-<region>.s3.amazonaws.com/'
+
 Outputs:
 
   SCAutomationAssumeRoleArn:
@@ -440,8 +446,8 @@ Resources:
         - Description: This is version 1.0 of the AWS ConfigRemediations Compliance Product
           Name: Version - 1.0
           Info:
-            LoadTemplateFromURL: "https://s3-reinforce-servicecatalog-presecriptivecompliance.s3.amazonaws.com/aws-servicecatalog-configremediations.yml"
-
+            LoadTemplateFromURL: !Sub "${S3StagingBucketURL}compliance/aws-servicecatalog-configremediations.yml"
+            
   ConfigRemediationsConfPackPortfolioAssociation:
     Type: 'AWS::ServiceCatalog::PortfolioProductAssociation'
     Properties:

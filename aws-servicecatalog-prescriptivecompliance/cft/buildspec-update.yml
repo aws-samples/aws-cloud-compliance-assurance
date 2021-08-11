@@ -1,0 +1,17 @@
+version: 0.2
+phases:
+    install:
+        commands:
+            - echo "Python has some SSL issues in this version so we force an upgrade which doesn't fix everything; don't be alarmed by the warnings."          
+    build:
+        commands:
+            - echo "S3 Upload Beginning"
+            - python -V
+            - export ACCID=$(aws sts get-caller-identity --query 'Account' | tr -d '"')
+            - aws s3 sync . s3://$STAGING_BUCKET/ --delete --exclude "*" --include "*.json" --include "*.yml" --include "*.yaml"
+            - echo "S3 Upload Complete, updating cloudformation now..."
+            - aws cloudformation update-stack-set --stack-set-name aws-servicecatalog-prescriptivecompliance --parameters "[{\"ParameterKey\":\"S3StagingBucketURL\",\"ParameterValue\":\"https://s3-configremediations-<accountid>-<region>.s3.amazonaws.com/\"}]" --template-url "https://$STAGING_BUCKET.s3.amazonaws.com/aws-servicecatalog-prescriptivecompliance.yml" --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+
+    post_build:
+        commands:
+            - echo "Deploy complete"

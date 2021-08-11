@@ -27,7 +27,7 @@ Parameters:
   RepositoryName:
     Description: CodeCommit Repository for Config Remediation CloudFormation templates
     Type: String
-    Default: ConfigremediationRepository
+    Default: ConfigRemediationsRepository
 
   BranchName:
     Description: Branch in the CodeCommit Repsitory for the Config Remediation CloudFormation templates
@@ -37,7 +37,7 @@ Parameters:
   S3StagingBucketPrefix:
     Description: Prefix for the S3 Staging Bucket that stages the code copied from code commit
     Type: String
-    Default: 's3-configremediation-<accountid>-<region>'
+    Default: 's3-configremediations-<accountid>-<region>'
 
 
 ## Resources
@@ -148,7 +148,7 @@ Resources:
       Stages:
         - Name: Source
           Actions:
-            - Name: TrendMicroSource
+            - Name: ComplianceSource
               ActionTypeId:
                 Category: Source
                 Owner: AWS
@@ -163,7 +163,7 @@ Resources:
               RunOrder: 1
         - Name: Build
           Actions:
-            - Name: TrendMicroBuild
+            - Name: ComplianceBuild
               InputArtifacts:
                 - Name: SourceOutput
               ActionTypeId:
