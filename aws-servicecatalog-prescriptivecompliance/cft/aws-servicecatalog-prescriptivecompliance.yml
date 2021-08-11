@@ -446,7 +446,7 @@ Resources:
         - Description: This is version 1.0 of the AWS ConfigRemediations Compliance Product
           Name: Version - 1.0
           Info:
-            LoadTemplateFromURL: !Sub "${S3StagingBucketURL}compliance/aws-servicecatalog-configremediations.yml"
+            LoadTemplateFromURL: !Sub "${S3StagingBucketURL}compliance/aws-servicecatalog-configremediations-v1.yml"
             
   ConfigRemediationsConfPackPortfolioAssociation:
     Type: 'AWS::ServiceCatalog::PortfolioProductAssociation'
