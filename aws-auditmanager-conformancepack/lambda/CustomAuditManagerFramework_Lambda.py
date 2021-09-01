@@ -1,6 +1,6 @@
 #  CustomAuditManagerFramework Lambda 
 #  - Creates Custom Audit Manager Control Sets and Custom Audit Manager Framework based on AWS Config Conformance Pack
-#  ---Takes a csv input that lists all Config rules in a Conformance Pack. For e.g. NIST-CSF as an example input here
+#  ---Takes a csv input that lists all Config rules in a Conformance Pack. For e.g. NERC-CIP as an example input here
 #  
 #
 # @kmmahaj
