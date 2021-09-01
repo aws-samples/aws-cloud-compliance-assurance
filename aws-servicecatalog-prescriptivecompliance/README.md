@@ -26,23 +26,23 @@ The following AWS CloudFormation templates have been implemented for this soluti
 
 ## Architecture
 
-![](images/ccoe-prescriptivecompliance.PNG)
+![](images/ccoe-prescriptivecompliance.png)
 
 
 ## Pre-requisites
 
 1. As a CCOE AWS administrator signed in to the AWS shared services account, set up the following resources.
-Enable AWS Config in the shared service account and all your managed accounts in the organization. Perform step 1 from the Automate configuration compliance at scale blog post to use Systems Manager quick setup to do that with just a few clicks from your console.
+Enable AWS Config in the shared service account and all your managed accounts in the organization. Perform [step 1 from the Automate configuration compliance at scale](https://aws.amazon.com/blogs/mt/automate-configuration-compliance-at-scale-in-aws/) blog post to use Systems Manager quick setup to do that with just a few clicks from your console.
 2.	Integrate AWS Cloud9 local Git repository with AWS CodeCommit remote Git repository
-	1. I have provided an aws-servicecatalog-configremediations-v1.yml AWS CloudFormation template that contains AWS Config Managed rules with integrated AWS Systems Manager remediation runbooks for common cloud configuration compliance violations. You can get the AWS CloudFormation template that provides a full coverage of PCI rules with SSM remediation runbooks from this PCI and FSBP Config Rules with SSM remediations repository
-	2. Create an AWS CodeCommit Git repository in the shared services account and integrate it with your local Git repository.  Using AWS Cloud9 is one of the easiest ways in AWS to set up a local Git repository and integrate with CodeCommit as the remote Git repository. Follow these steps to setup Cloud9 and integrate with a CodeCommit repository.  
-3.	Download these files from this solution’s GitHub repo and upload them to your Cloud9 local Git repository. My local Cloud9 Git repository contains the following files in this structure.
+	1. Use the aws-servicecatalog-configremediations-v1.yml AWS CloudFormation template that contains AWS Config Managed rules with integrated AWS Systems Manager remediation runbooks for common cloud configuration compliance violations. You can get the AWS CloudFormation template that provides a full coverage of PCI rules with SSM remediation runbooks from this [PCI and FSBP Config Rules with built-in SSM remediations](https://github.com/aws-samples/aws-config-pci-fsbp-ssmremediations) repository
+	2. Create an AWS CodeCommit Git repository in the shared services account and integrate it with your local Git repository. Using AWS Cloud9 is one of the easiest ways in AWS to set up a local Git repository and integrate with CodeCommit as the remote Git repository.  
+3.	Download these files from this solution’s GitHub repo and upload them to your Cloud9 local Git repository.The local Cloud9 Git repository contains the following files in this structure.
 	1. Compliance product templates:
-		1. aws-servicecatalog-configremediations-v1.yml in a compliance folder
+		1. aws-servicecatalog-configremediations-v1.yml in a *compliance* folder
 		2. aws-servicecatalog-prescriptivecompliance.yml in the root folder
 	2. buildspec.yml in the root folder
 	3. buildspec-update.yml in the root folder
-4.	Create an S3 staging bucket using this naming convention: s3-configremediations-*accountid*-*region*. Create a folder called ‘compliance’in your S3 bucket. The folder names here need to match the folder names in your local Git repository. You can create these folders with any names as long as those are the same names used while creating your local Git repository there.
+4.	Create an S3 staging bucket using this naming convention: s3-configremediations-*accountid*-*region*. Create a folder called *compliance* in your S3 bucket. The folder names here need to match the folder names in your local Git repository. You can create these folders with any names as long as those are the same names used while creating your local Git repository there.
 5.	In the following files that are available for download from the solution, substitute the *accountid* parameter with the AWS Account ID of the shared services account. Substitute the *region* parameter with the AWS region of your shared services account. Substitute the *managedaccount* and *managedregion* parameters with comma separated AWS Account IDs and comma separated AWS regions respectively of the managed accounts where the solution will be deployed.
 	1. buildspec.yml
 	2. buildspec-updates.yml
