@@ -32,7 +32,7 @@ The following AWS CloudFormation templates have been implemented for this soluti
 ## Pre-requisites
 
 1. As a CCOE AWS administrator signed in to the AWS shared services account, set up the following resources.
-Enable AWS Config in the shared service account and all your managed accounts in the organization. Perform [step 1 from the Automate configuration compliance at scale](https://aws.amazon.com/blogs/mt/automate-configuration-compliance-at-scale-in-aws/) blog post to use Systems Manager quick setup to do that with just a few clicks from your console.
+Enable AWS Config in the shared service account and all your managed accounts in the organization. [Perform step 1 from the Automate configuration compliance at scale blog post](https://aws.amazon.com/blogs/mt/automate-configuration-compliance-at-scale-in-aws/) to use Systems Manager quick setup to do that with just a few clicks from your console.
 2.	Integrate AWS Cloud9 local Git repository with AWS CodeCommit remote Git repository
 	1. Use the aws-servicecatalog-configremediations-v1.yml AWS CloudFormation template that contains AWS Config Managed rules with integrated AWS Systems Manager remediation runbooks for common cloud configuration compliance violations. You can get the AWS CloudFormation template that provides a full coverage of PCI rules with SSM remediation runbooks from this [PCI and FSBP Config Rules with built-in SSM remediations](https://github.com/aws-samples/aws-config-pci-fsbp-ssmremediations) repository
 	2. Create an AWS CodeCommit Git repository in the shared services account and integrate it with your local Git repository. Using AWS Cloud9 is one of the easiest ways in AWS to set up a local Git repository and integrate with CodeCommit as the remote Git repository.  
@@ -48,7 +48,7 @@ Enable AWS Config in the shared service account and all your managed accounts in
 	2. buildspec-updates.yml
 
 
-## How to Install and Test
+## How to Install
 
 The initial set up is done in 1 step by the CCOE (Cloud Center of Excellence) AWS Administrator from the shared services account.
 
@@ -57,44 +57,21 @@ The initial set up is done in 1 step by the CCOE (Cloud Center of Excellence) AW
 	2. BranchName: Branch in the CodeCommit repository for the Config Remediation CloudFormation templates
 	3. S3StagingBucketPrefix: Prefix for the S3 Staging Bucket that stages the code copied from code commit.  In our case this is s3-configremediations-*accountid*-*region*
  
-This 1 step executes the following -
-1. The template provisions AWS CodePipeline in the AWS Shared Services account.
-2. The AWS CodeCommit stage of AWS CodePipeline downloads the code from the AWS CodeCommit Git repository and into the Amazon S3 artifact repository of AWS CodePipeline.
-3. The AWS CodeBuild stage of AWS CodePipeline uses the AWS Service Catalog Portfolio template, executes the commands in the buildspec.yaml file to stage the code in an S3 bucket, and leverages AWS CloudFormation StackSets to launch the aws-configremediations-servicecatalog-portfolio in the managed accounts. 
-	1. This last step creates the AWS Service Catalog Portfolio in the managed accounts with the Config rules and integrated remediation runbooks Service Catalog Products. 
-	2. This step also creates an end user group (EndUserGroup), an end user role (EndUserRole) and a launch constraint in the managed accounts. This allows an IAM end user in the managed accounts to log in and directly use the AWS Service Catalog console to launch the Config rules with remediation runbooks products. 
 
+# Validate compliance
 
+Test and validate the standardized compliance posture that CCOE teams can enforce across managed accounts using AWS Service Catalog
 
-In order to test that the initial setup was successful, login to the Managed Account as an end	user and perform the following step–
+**Step 1: Launch the Service Catalog Product**
+a.	Log in to the IAM console of the AWS managed account as an administrator and create an IAM user that is a member of the EnduserGroup and logout of the managed account.
+b.	Next, navigate to the AWS Service Catalog console of the managed account as the IAM end user that was created and navigate to the left sidebar and choose Products. Select the *AWS ConfigRemediations Compliance Product* product, accept the defaults and select *Launch Product*. The Service Catalog product screen will auto refresh until the product has been launched. Select *Provisioned Products* from the left sidebar to validate that the product has been launched and the status shows available.
 
-1.	Log in to the managed account as an end user.
-2.	Navigate to the Service Catalog console in the AWS managed account and click on Products in the left panel of the console.  Select a product and launch Trend Micro products and the Trend Micro Deep Security agent directly from here. As a best practice, the AWS Service Catalog product for the Trend Micro agent is set up to allow deployment of Trend Micro Deep Security agents to EC2 instances based on resource tags.
-3.	Accept the defaults to test the launch of the Trend Micro Deep Security agent.
-4.	Follow the instructions in the Deep Security Quick Start to set up Trend Micro Deep Security.
+**Step 2: Review provisioned Config rules with attached remediation runbooks**
+a.	Navigate to the AWS Config Console of the managed account. You will see that several AWS Config rules - specifically ‘cloud-trail-log-file-validation-enabled’, ‘ReleaseElasticIP’, ‘cloud_trail_cloud_watch_logs_enabled’, ‘cmk-backing-key-rotation-enabled’ and ‘cis-iam-password-policy’- with associated remediation runbooks have been provisioned for you based on the launch of the Service Catalog product. These Config rules with associated remediations will provide continuous compliance for your AWS environment based on the evaluation of these provisioned rules.
 
-
-Updates are performed directly from the local GitHub repository. The CCOE AWS Administrator checks in updated TrendMicro source template(s) in this step. If this is the first time that this update is being performed, then the check-in should also include a modified buildspec.yml file. Replace the existing buildspec.yaml with the buildspec-updates.yml file and rename the buildspec-updates.yml to buildspec.yml. The modified buildspec.yaml file invokes update-stackset on CloudFormation instead of a create-stackset. 
-
-
-AWS CodePipeline will automatically recognize the commit and proceed through its stages and actions and update the Trend Micro products in AWS Service Catalog of the managed accounts. The automated pipeline for managing AWS Service Catalog is now set up and responding to template changes via git commits.
-
-For our walkthrough, let’s test performing updates as a CCOE administrator.
-
-1.	In your local git repository and inside the distributor agent folder, rename the aws-systemsmanagerdistributor-agent-v1.yaml file to aws-systemsmanagerdistributor-agent-v2.yaml. Assume that you have a new version of the agent and a new version of this template has been created for that and checked in your source code repository.
-2.	In your local git repository, update the aws-trendmicro-servicecatalog-portfolio AWS CloudFormation template. Look for the Resources section in this template and specifically the TrendMicroDeepSecurityAgent Resource. Update the ProvisioningArtifactParameters section with the following: 
-	Description: This is version 2.0 of Trend Micro Deep Security Agent
-	Name: Version - 2.0
-	Info: LoadTemplateFromURL: !Sub "${S3StagingBucketURL}distributoragent/aws-systemsmanagerdistributor-agent_v2.yaml"
-3.	Replace the existing buildspec.yml file with buildspec-updates.yml. Rename buildspec-updates.yml to buildspec.yml.
-4.	In your git bash terminal on your local machine, issue the following commands to update the AWS CodeCommit Repository with changes from your local git repository
-	git add .
-	git commit –m “version update”
-	git push origin master
-5.	Sign in to the AWS Shared Services account and open the AWS CodePipeline console. You should see that the code pipeline gets triggered due to a new commit in the AWS CodeCommit repository.
-6.	Verify that all stages of the AWS CodePipeline complete successfully.
-7.	Open the AWS CloudFormation console and choose StackSets and then Operations.
-8.	Verify that the aws-trendmicro-servicecatalog-portfolio StackSet is updated successfully
-9.	Sign in to the AWS managed account as an end user and open the AWS Service Catalog console.
-10.	Verify that the Trend Micro Deep Security Agent product has been updated with the new version, template, and description.
-
+**Step 3: Verify automated ‘attack’ and validate compliance**
+We've provided built-in automation that launches a *compliance attack* by simulating misconfiguration of AWS resources. 
+b.	Log in as an administrator in the managed account:
+	1. Check that an AWS CloudTrail called ‘ReinforceTrail’ has been provisioned without log file validation and CloudWatch Logs monitoring enabled. Check that an AWS KMS Customer Master Key with description ‘Test Key Rotation’ has key rotation disabled and that there’s an Elastic IP with an unassociated EC2 instance.
+	2. Navigate to the AWS Systems Manager console and select Automation in the left panel and then select Executions. Since we have launched the Service Catalog Product in the managed account, our standardized compliance posture triggers AWS Config Remediations that leverage our integrated and custom AWS Systems Manager remediation runbooks. You can monitor the Execution status in the Systems Manager Automation console for each of the automations and verify their successful automation status.
+	3. Finally validate the compliance posture of the managed account by validating that each of the misconfigured resources are now in the desired state. Check that the AWS CloudTrail called ‘ReinforceTrail’ has been both log file validation and CloudWatch Logs monitoring enabled. Check that an AWS KMS Customer Master Key with description ‘Test Key Rotation’ has key rotation enabled and that the unassociated Elastic IP has been removed.
