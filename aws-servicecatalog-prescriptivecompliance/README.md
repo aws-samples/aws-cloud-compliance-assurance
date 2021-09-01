@@ -72,8 +72,7 @@ Test and validate the standardized compliance posture that CCOE teams can enforc
 	1. These Config rules with associated remediations will provide continuous compliance for your AWS environment based on the evaluation of these provisioned rules.
 
 **Step 3: Verify automated ‘attack’ and validate compliance**
-We've provided built-in automation that launches a *compliance attack* by simulating misconfiguration of AWS resources. 
-1. Log in as an administrator in the managed account:
+1. The solution provides built-in automation that launches a *compliance attack* by simulating misconfiguration of AWS resources. Log in as an administrator in the managed account:
 	1. Check that an AWS CloudTrail called ‘ReinforceTrail’ has been provisioned without log file validation and CloudWatch Logs monitoring enabled. Check that an AWS KMS Customer Master Key with description ‘Test Key Rotation’ has key rotation disabled and that there’s an Elastic IP with an unassociated EC2 instance.
 	2. Navigate to the AWS Systems Manager console and select Automation in the left panel and then select Executions. Since we have launched the Service Catalog Product in the managed account, our standardized compliance posture triggers AWS Config Remediations that leverage our integrated and custom AWS Systems Manager remediation runbooks. You can monitor the Execution status in the Systems Manager Automation console for each of the automations and verify their successful automation status.
 	3. Finally validate the compliance posture of the managed account by validating that each of the misconfigured resources are now in the desired state. Check that the AWS CloudTrail called ‘ReinforceTrail’ has been both log file validation and CloudWatch Logs monitoring enabled. Check that an AWS KMS Customer Master Key with description ‘Test Key Rotation’ has key rotation enabled and that the unassociated Elastic IP has been removed.
