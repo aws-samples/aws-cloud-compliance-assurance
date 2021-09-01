@@ -58,20 +58,22 @@ The initial set up is done in 1 step by the CCOE (Cloud Center of Excellence) AW
 	3. S3StagingBucketPrefix: Prefix for the S3 Staging Bucket that stages the code copied from code commit.  In our case this is s3-configremediations-*accountid*-*region*
  
 
-# Validate compliance
+## Validate compliance
 
 Test and validate the standardized compliance posture that CCOE teams can enforce across managed accounts using AWS Service Catalog
 
 **Step 1: Launch the Service Catalog Product**
-a.	Log in to the IAM console of the AWS managed account as an administrator and create an IAM user that is a member of the EnduserGroup and logout of the managed account.
-b.	Next, navigate to the AWS Service Catalog console of the managed account as the IAM end user that was created and navigate to the left sidebar and choose Products. Select the *AWS ConfigRemediations Compliance Product* product, accept the defaults and select *Launch Product*. The Service Catalog product screen will auto refresh until the product has been launched. Select *Provisioned Products* from the left sidebar to validate that the product has been launched and the status shows available.
+1. Log in to the IAM console of the AWS managed account as an administrator and create an IAM user that is a member of the EnduserGroup and logout of the managed account.
+2. Navigate to the AWS Service Catalog console of the managed account as the IAM end user that was created and navigate to the left sidebar and choose Products. 
+	1. Select the *AWS ConfigRemediations Compliance Product* product, accept the defaults and select *Launch Product*. The Service Catalog product screen will auto refresh until the product has been launched. Select *Provisioned Products* from the left sidebar to validate that the product has been launched and the status shows available.
 
 **Step 2: Review provisioned Config rules with attached remediation runbooks**
-a.	Navigate to the AWS Config Console of the managed account. You will see that several AWS Config rules - specifically ‘cloud-trail-log-file-validation-enabled’, ‘ReleaseElasticIP’, ‘cloud_trail_cloud_watch_logs_enabled’, ‘cmk-backing-key-rotation-enabled’ and ‘cis-iam-password-policy’- with associated remediation runbooks have been provisioned for you based on the launch of the Service Catalog product. These Config rules with associated remediations will provide continuous compliance for your AWS environment based on the evaluation of these provisioned rules.
+1. Navigate to the AWS Config Console of the managed account. You will see that several AWS Config rules - specifically ‘cloud-trail-log-file-validation-enabled’, ‘ReleaseElasticIP’, ‘cloud_trail_cloud_watch_logs_enabled’, ‘cmk-backing-key-rotation-enabled’ and ‘cis-iam-password-policy’- with associated remediation runbooks have been provisioned for you based on the launch of the Service Catalog product.
+	1. These Config rules with associated remediations will provide continuous compliance for your AWS environment based on the evaluation of these provisioned rules.
 
 **Step 3: Verify automated ‘attack’ and validate compliance**
 We've provided built-in automation that launches a *compliance attack* by simulating misconfiguration of AWS resources. 
-b.	Log in as an administrator in the managed account:
+1. Log in as an administrator in the managed account:
 	1. Check that an AWS CloudTrail called ‘ReinforceTrail’ has been provisioned without log file validation and CloudWatch Logs monitoring enabled. Check that an AWS KMS Customer Master Key with description ‘Test Key Rotation’ has key rotation disabled and that there’s an Elastic IP with an unassociated EC2 instance.
 	2. Navigate to the AWS Systems Manager console and select Automation in the left panel and then select Executions. Since we have launched the Service Catalog Product in the managed account, our standardized compliance posture triggers AWS Config Remediations that leverage our integrated and custom AWS Systems Manager remediation runbooks. You can monitor the Execution status in the Systems Manager Automation console for each of the automations and verify their successful automation status.
 	3. Finally validate the compliance posture of the managed account by validating that each of the misconfigured resources are now in the desired state. Check that the AWS CloudTrail called ‘ReinforceTrail’ has been both log file validation and CloudWatch Logs monitoring enabled. Check that an AWS KMS Customer Master Key with description ‘Test Key Rotation’ has key rotation enabled and that the unassociated Elastic IP has been removed.
