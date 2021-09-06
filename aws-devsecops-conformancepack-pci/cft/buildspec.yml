@@ -1,0 +1,18 @@
+version: 0.2
+phases:
+    install:
+        commands:
+            - echo "Python has some SSL issues in this version so we force an upgrade which doesn't fix everything; don't be alarmed by the warnings."       
+    build:
+        commands:
+            - echo "S3 Upload Beginning"
+            - python -V
+            - export ACCID=$(aws sts get-caller-identity --query 'Account' | tr -d '"')
+            - aws s3 sync . s3://$STAGING_BUCKET/ --delete --exclude "*" --include "*.json" --include "*.yml" --include "*.yaml"
+            - echo "S3 Upload Complete, updating cloudformation now..."
+            - aws configservice put-conformance-pack --conformance-pack-name="confpack-pci-1" --template-s3-uri="s3://s3-pciautohealconfpack-<accountid>-<region>/ec2-lambda/aws-pci-conformancepack-v1-1.yml" --delivery-s3-bucket="config-bucket-<accountid>"
+            - aws configservice put-conformance-pack --conformance-pack-name="confpack-pci-2" --template-s3-uri="s3://s3-pciautohealconfpack-<accountid>-<region>/cloudtrail-kms-codebuild/aws-pci-conformancepack-v1-2.yml" --delivery-s3-bucket="config-bucket-<accountid>"
+            - aws configservice put-conformance-pack --conformance-pack-name="confpack-pci-3" --template-s3-uri="s3://s3-pciautohealconfpack-<accountid>-<region>/redshift-rds-iam/aws-pci-conformancepack-v1-3.yml" --delivery-s3-bucket="config-bucket-<accountid>"
+    post_build:
+        commands:
+            - echo "Deploy complete"

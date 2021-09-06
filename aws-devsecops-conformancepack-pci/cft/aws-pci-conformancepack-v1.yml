@@ -1,0 +1,251 @@
+################################################################################
+#
+#  PCI Conformance Pack with Remediations - EC2, Autoscaling, Lambda 
+# 
+# @kmmahaj
+#
+# License:
+# This code is made available under the MIT-0 license. See the LICENSE file.
+################################################################################
+
+Parameters:
+
+  DeliveryS3Bucket:
+    Description: Delivery Bucket from AWS Config settings
+    Type: String
+    Default: 's3-config-accountid'
+
+Resources:
+
+  ConformancePack:
+    Type: 'AWS::Config::ConformancePack'
+    Properties: 
+    ConformancePackName: CustomPCIEC2LambdaConfPack
+    DeliveryS3Bucket: !Ref ConformancePackDeliveryBucket
+    TemplateBody: |-
+        Resources:
+            
+            AutoScalingELBHealthCheck:
+              Type: AWS::Config::ConfigRule
+              Properties:
+                ConfigRuleName: AutoScalingELBHealthCheck
+                Description: >-
+                  [PCI.AutoScaling.1] Auto scaling groups associated with a load balancer should use health checks
+                Scope:
+                  ComplianceResourceTypes:
+                  - "AWS::AutoScaling::AutoScalingGroup"
+                Source:
+                  Owner: AWS
+                  SourceIdentifier: AUTOSCALING_GROUP_ELB_HEALTHCHECK_REQUIRED
+            
+            AutoScalingELBHealthCheckRemediation:
+              DependsOn: AutoScalingELBHealthCheck
+              Type: 'AWS::Config::RemediationConfiguration'
+              Properties:
+                ConfigRuleName: AutoScalingELBHealthCheck
+                ResourceType: "AWS::AutoScaling::AutoScalingGroup"
+                TargetId: "Custom-AutoScalingELBHealthCheck"
+                TargetType: "SSM_DOCUMENT"
+                TargetVersion: "1"
+                Parameters:
+                  AutomationAssumeRole:
+                    StaticValue:
+                      Values:
+                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                  ASGGroupArn:
+                    ResourceValue:
+                      Value: "RESOURCE_ID"
+                ExecutionControls:
+                  SsmControls:
+                    ConcurrentExecutionRatePercentage: 10
+                    ErrorPercentage: 10
+                Automatic: True
+                MaximumAutomaticAttempts: 10
+                RetryAttemptSeconds: 600
+
+            ReleaseElasticIP:
+              Type: AWS::Config::ConfigRule
+              Properties:
+                ConfigRuleName: ReleaseElasticIP
+                Description: >-
+                  [PCI.EC2.4] Unused EC2 EIPs should be removed
+                Scope:
+                  ComplianceResourceTypes:
+                  - "AWS::EC2::EIP"
+                Source:
+                  Owner: AWS
+                  SourceIdentifier: EIP_ATTACHED
+            ReleaseElasticIPRemediation:
+              DependsOn: ReleaseElasticIP
+              Type: 'AWS::Config::RemediationConfiguration'
+              Properties:
+                ConfigRuleName: ReleaseElasticIP
+                ResourceType: "AWS::EC2::EIP"
+                TargetId: "AWS-ReleaseElasticIP"
+                TargetType: "SSM_DOCUMENT"
+                TargetVersion: "1"
+                Parameters:
+                  AutomationAssumeRole:
+                    StaticValue:
+                      Values:
+                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                  AllocationId:
+                    ResourceValue:
+                      Value: "RESOURCE_ID"
+                ExecutionControls:
+                  SsmControls:
+                    ConcurrentExecutionRatePercentage: 10
+                    ErrorPercentage: 10
+                Automatic: True
+                MaximumAutomaticAttempts: 10
+                RetryAttemptSeconds: 600
+
+            EBSPublicNonRestoreSnapshotEnabled:
+              Type: "AWS::Config::ConfigRule"
+              Properties:
+                ConfigRuleName: EBSPublicNonRestoreSnapshotEnabled
+                Description: "[PCI.EC2.1] Amazon EBS snapshots should not be publicly restorable"
+                Source:
+                  Owner: AWS
+                  SourceIdentifier: EBS_SNAPSHOT_PUBLIC_RESTORABLE_CHECK
+            EBSPublicNonRestoreSnapshotRemediation:
+              DependsOn: EBSPublicNonRestoreSnapshotEnabled
+              Type: 'AWS::Config::RemediationConfiguration'
+              Properties:
+                ConfigRuleName: EBSPublicNonRestoreSnapshotEnabled
+                TargetId: "Custom-ModifySnapshot"
+                TargetType: "SSM_DOCUMENT"
+                TargetVersion: "1"
+                Parameters:
+                  AutomationAssumeRole:
+                    StaticValue:
+                      Values:
+                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                  snapshotId:
+                    ResourceValue:
+                      Value: "RESOURCE_ID"
+                ExecutionControls:
+                  SsmControls:
+                    ConcurrentExecutionRatePercentage: 10
+                    ErrorPercentage: 10
+                Automatic: True
+                MaximumAutomaticAttempts: 10
+                RetryAttemptSeconds: 600
+
+            RemoveUnusedEC2SecurityGroups:
+              Type: AWS::Config::ConfigRule
+              Properties:
+                ConfigRuleName: RemoveUnusedEC2SecurityGroups
+                Description: >-
+                  PCI.EC2.3 – Unused EC2 Security Groups should be removed
+                Scope:
+                  ComplianceResourceTypes:
+                  - "AWS::EC2::SecurityGroup"
+                Source:
+                  Owner: AWS
+                  SourceIdentifier: EC2_SECURITY_GROUP_ATTACHED_TO_ENI
+            RemoveUnusedEC2SecurityGroupsRemediation:
+              DependsOn: RemoveUnusedEC2SecurityGroups
+              Type: 'AWS::Config::RemediationConfiguration'
+              Properties:
+                ConfigRuleName: RemoveUnusedEC2SecurityGroups
+                ResourceType: "AWS::EC2::SecurityGroup"
+                TargetId: "Custom-RemoveSecurityGroup"
+                TargetType: "SSM_DOCUMENT"
+                TargetVersion: "1"
+                Parameters:
+                  AutomationAssumeRole:
+                    StaticValue:
+                      Values:
+                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                  groupId:
+                    ResourceValue:
+                      Value: "RESOURCE_ID"
+                ExecutionControls:
+                  SsmControls:
+                    ConcurrentExecutionRatePercentage: 10
+                    ErrorPercentage: 10
+                Automatic: True
+                MaximumAutomaticAttempts: 10
+                RetryAttemptSeconds: 600
+
+            RestrictDefaultSecurityGroup:
+              Type: AWS::Config::ConfigRule
+              Properties:
+                ConfigRuleName: RestrictDefaultSecurityGroup
+                Description: >-
+                  PCI.EC2.2 VPC default security group should prohibit inbound and outbound traffic
+                Scope:
+                  ComplianceResourceTypes:
+                  - "AWS::EC2::SecurityGroup"
+                Source:
+                  Owner: AWS
+                  SourceIdentifier: VPC_DEFAULT_SECURITY_GROUP_CLOSED
+            RestrictDefaultSecurityGroupRemediation:
+              DependsOn: RestrictDefaultSecurityGroup
+              Type: 'AWS::Config::RemediationConfiguration'
+              Properties:
+                ConfigRuleName: RestrictDefaultSecurityGroup
+                ResourceType: "AWS::EC2::SecurityGroup"
+                TargetId: "Custom-RestrictSecurityGroup"
+                TargetType: "SSM_DOCUMENT"
+                TargetVersion: "1"
+                Parameters:
+                  AutomationAssumeRole:
+                    StaticValue:
+                      Values:
+                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                  IpAddressToBlock:
+                    StaticValue:
+                      Values:
+                        - '0.0.0.0/0'
+                  groupId:
+                    ResourceValue:
+                      Value: "RESOURCE_ID"
+                ExecutionControls:
+                  SsmControls:
+                    ConcurrentExecutionRatePercentage: 10
+                    ErrorPercentage: 10
+                Automatic: True
+                MaximumAutomaticAttempts: 10
+                RetryAttemptSeconds: 600
+
+            RestrictPublicAccessLambdaEnabled:
+              Type: "AWS::Config::ConfigRule"
+              Properties:
+                ConfigRuleName: RestrictPublicAccessLambdaEnabled
+                Description: "PCI.Lambda.1 Lambda functions should prohibit public access"
+                Scope:
+                  ComplianceResourceTypes:
+                  - "AWS::Lambda::Function"
+                Source:
+                  Owner: AWS
+                  SourceIdentifier: LAMBDA_FUNCTION_PUBLIC_ACCESS_PROHIBITED
+            RestrictPublicAccessLambdaRemediation:
+              DependsOn: RestrictPublicAccessLambdaEnabled
+              Type: 'AWS::Config::RemediationConfiguration'
+              Properties:
+                ConfigRuleName: RestrictPublicAccessLambdaEnabled
+                ResourceType: "AWS::Lambda::Function"
+                TargetId: "Custom-RestrictPublicLambda"
+                TargetType: "SSM_DOCUMENT"
+                TargetVersion: "1"
+                Parameters:
+                  AutomationAssumeRole:
+                    StaticValue:
+                      Values:
+                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                  accountID:
+                    StaticValue:
+                      Values:
+                        - !Ref 'AWS::AccountId'
+                  functionname:
+                    ResourceValue:
+                      Value: "RESOURCE_ID"
+                ExecutionControls:
+                  SsmControls:
+                    ConcurrentExecutionRatePercentage: 10
+                    ErrorPercentage: 10
+                Automatic: True
+                MaximumAutomaticAttempts: 10
+                RetryAttemptSeconds: 600

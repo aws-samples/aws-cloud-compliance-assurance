@@ -1,0 +1,179 @@
+################################################################################
+#
+# PCI Conformance Pack with Remediations - KMS, CloudTrail, CodeBuild
+# 
+# @kmmahaj
+#
+# License:
+# This code is made available under the MIT-0 license. See the LICENSE file.
+################################################################################
+
+Resources:
+
+  CMKBackingKeyRotation:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      Description: >-
+        PCI.KMS.1 – Ensure rotation for customer created CMKs is enabled
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::KMS::Key"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CMK_BACKING_KEY_ROTATION_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CMKBackingKeyRotationRemediation:
+    DependsOn: CMKBackingKeyRotation
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      ResourceType: "AWS::KMS::Key"
+      TargetId: "Custom-CMKBackingKeyRotationCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        KMSKeyArn:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+    
+  CodeBuildProjectEnvVariableCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: CodeBuildProjectEnvVariableCheck
+      Description: >-
+        PCI.CodeBuild.2- CodeBuild project environment variables should not contain clear text credentials
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CodeBuild::Project"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CODEBUILD_PROJECT_ENVVAR_AWSCRED_CHECK
+  CodeBuildProjectEnvVariableCheckRemediation:
+    DependsOn: CodeBuildProjectEnvVariableCheck
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: CodeBuildProjectEnvVariableCheck
+      ResourceType: "AWS::CodeBuild::Project"
+      TargetId: "Custom-CodeBuildUpdateProject"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        projectName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+
+  CloudTrailLogFileValidationEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      Description: >-
+        PCI.CloudTrail.3 – Ensure CloudTrail log file validation is enabled
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_LOG_FILE_VALIDATION_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailLogFileValidationRemediation:
+    DependsOn: CloudTrailLogFileValidationEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "Custom-LogFileValidationCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        CloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudTrailLogGroupArn
+        CloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudWatchRoleArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+
+  CloudTrailCloudWatchLogsEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud_trail_cloud_watch_logs_enabled
+      Description: >-
+        PCI.CloudTrail.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_CLOUD_WATCH_LOGS_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailCloudWatchLogsRemediation:
+    DependsOn: CloudTrailCloudWatchLogsEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloud_trail_cloud_watch_logs_enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "Custom-CloudTrailUpdateCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        CloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudTrailLogGroupArn
+        CloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudWatchRoleArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+  

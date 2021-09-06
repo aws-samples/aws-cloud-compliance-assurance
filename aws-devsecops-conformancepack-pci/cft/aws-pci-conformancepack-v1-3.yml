@@ -1,0 +1,247 @@
+################################################################################
+#
+# PCI Conformance Pack with Remediations - RDS,Redshift,S3,IAM
+# 
+# @kmmahaj
+#
+# License:
+# This code is made available under the MIT-0 license. See the LICENSE file.
+################################################################################
+
+Resources:
+
+  RDSNonPublicInstanceEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RDSNonPublicInstanceEnabled
+      Description: "[PCI.RDS.2] RDS instances should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::RDS::DBInstance"
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_INSTANCE_PUBLIC_ACCESS_CHECK
+  RDSNonPublicInstanceRemediation:
+    DependsOn: RDSNonPublicInstanceEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RDSNonPublicInstanceEnabled
+      ResourceType: "AWS::RDS::DBInstance"
+      TargetId: "Custom-ModifyRDSDBInstance"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        dbresourceid:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+
+  RedshiftNonPublicClusterEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RedshiftNonPublicClusterEnabled
+      Description: "[PCI.Redshift.1] Amazon Redshift clusters should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::Redshift::Cluster"
+      Source:
+        Owner: AWS
+        SourceIdentifier: REDSHIFT_CLUSTER_PUBLIC_ACCESS_CHECK
+  RedshiftNonPublicClusterRemediation:
+    DependsOn: RedshiftNonPublicClusterEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RedshiftNonPublicClusterEnabled
+      ResourceType: "AWS::Redshift::Cluster"
+      TargetId: "Custom-ModifyRedshiftCluster"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        clusterId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+
+  RDSNonPublicSnapshotEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RDSNonPublicSnapshotEnabled
+      Description: "[PCI.RDS.1] RDS snapshots should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::RDS::DBSnapshot"
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_SNAPSHOTS_PUBLIC_PROHIBITED
+  RDSNonPublicSnapshotRemediation:
+    DependsOn: RDSNonPublicSnapshotEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RDSNonPublicSnapshotEnabled
+      ResourceType: "AWS::RDS::DBSnapshot"
+      TargetId: "Custom-ModifyRDSSnapshot"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        snapshotId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        snapshotType:
+          StaticValue:
+            Values:
+              - "AwsRdsDBSnapshot"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+
+  S3ReplicationEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: S3ReplicationEnabled
+      Description: "[PCI.S3.3] S3 buckets should have cross-region replication enabled"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_REPLICATION_ENABLED
+  S3ReplicationEnabledRemediation:
+    DependsOn: S3ReplicationEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3ReplicationEnabled
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "Custom-EnableS3Replication"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        S3IAMReplicationRole:
+          StaticValue:
+            Values:
+              - !ImportValue S3BucketReplicationRoleArn
+        DestinationBucketName:
+          StaticValue:
+            Values:
+              - !ImportValue S3ReplicationBucketFullName
+        SourceBucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        SSEAlgorithm:
+          StaticValue:
+            Values:
+              - "AES256"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+
+  IAMUserPolicyDetach:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: IAMUserPolicyDetach
+      Description: >-
+        PCI.IAM.2 – IAM users should not have IAM Policies attached. Ensure IAM policies are attached only to groups or roles
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::IAM::User"
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_USER_NO_POLICIES_CHECK
+  IAMUserPolicyDetachRemediation:
+    DependsOn: IAMUserPolicyDetach
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: IAMUserPolicyDetach
+      TargetId: "Custom-IAMUserPolicyDetachCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        username:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+
+  IAMFullAdminPolicyDetach:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: IAMFullAdminPolicyDetach
+      Description: >-
+        PCI.IAM.3 – Ensure IAM policies that allow full administrative privileges are not created
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::IAM::User"
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS
+  IAMFullAdminPolicyDetachRemediation:
+    DependsOn: IAMFullAdminPolicyDetach
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: IAMFullAdminPolicyDetach
+      TargetId: "Custom-IAMFullAdminPolicyDetachCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+        accountid:
+          StaticValue:
+            Values:
+              - !Ref 'AWS::AccountId'
+        policyresourceid:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
