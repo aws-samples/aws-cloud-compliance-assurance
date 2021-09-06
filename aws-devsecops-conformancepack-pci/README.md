@@ -47,4 +47,3 @@ Augments the AWS Config Conformance Pack for Operational Best Practices for PCI 
 
 The [Coverage Matrix](coverage/AWSPCIConformancePacksAutoHealingCoverage.xlsx) provides the current coverage of this solution versus the PCI Benchmarks
 
-## @kmmahaj
