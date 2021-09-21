@@ -12,6 +12,10 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: CIS AWS Foundations Benchmark Metric Alarms
 
 Parameters:
+  EmailAddress:
+    Description: Email Address for notifications
+    Type: String
+    Default:  admin@example.com
 
   CloudTrailLogGroup:
     Description: Name of the CloudWatch Log group for CloudTrail
@@ -22,6 +26,22 @@ Resources:
 #===============================================================================================================================
 # Pre-requisites Set up
 #===============================================================================================================================
+
+# SNS topic for CloudWatch Alarm Notifications
+  AlarmNotificationTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: AlarmNotificationTopic
+      TopicName: AlarmNotificationTopic
+
+# Email Subscription for SNS topic
+  AlarmEmailSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      Protocol: email
+      Endpoint: !Ref EmailAddress
+      TopicArn: !Ref AlarmNotificationTopic
+
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------
@@ -39,6 +59,8 @@ Resources:
       EvaluationPeriods: '1'
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   UnauthorizedApiCallsFilter:
     Type: AWS::Logs::MetricFilter
@@ -69,6 +91,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   NoMfaConsoleLoginsFilter:
     Type: AWS::Logs::MetricFilter
@@ -102,6 +126,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   RootAccountLoginsFilter:
     Type: AWS::Logs::MetricFilter
@@ -133,6 +159,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   IAMPolicyChangesFilter:
     Type: AWS::Logs::MetricFilter
@@ -206,6 +234,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   CloudtrailConfigChangesFilter:
     Type: AWS::Logs::MetricFilter
@@ -241,6 +271,8 @@ Resources:
       EvaluationPeriods: '1'
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   FailedConsoleLoginsFilter:
     Type: AWS::Logs::MetricFilter
@@ -274,6 +306,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   DisabledOrDeletedCmksFilter:
     Type: AWS::Logs::MetricFilter
@@ -304,6 +338,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   S3BucketPolicyChangeFilter:
     Type: AWS::Logs::MetricFilter
@@ -342,6 +378,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   AWSConfigConfigurationChangeFilter:
     Type: AWS::Logs::MetricFilter
@@ -375,6 +413,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   SecurityGroupChangeFilter:
     Type: AWS::Logs::MetricFilter
@@ -409,6 +449,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   NACLChangeFilter:
     Type: AWS::Logs::MetricFilter
@@ -443,6 +485,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   NetworkGatewayChangeFilter:
     Type: AWS::Logs::MetricFilter
@@ -477,6 +521,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   RouteTableChangeFilter:
     Type: AWS::Logs::MetricFilter
@@ -512,6 +558,8 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 1
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
   VPCChangeFilter:
     Type: AWS::Logs::MetricFilter
