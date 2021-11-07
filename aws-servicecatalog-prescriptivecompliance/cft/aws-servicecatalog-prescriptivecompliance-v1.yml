@@ -309,7 +309,7 @@ Resources:
       - MisconfiguredBucketPolicy
     Type: AWS::CloudTrail::Trail
     Properties: 
-      TrailName: 'ReinforceTrail'
+      TrailName: 'ReinventTrail'
       EnableLogFileValidation: false
       S3BucketName: 
         Ref: SCS3MisconfiguredCloudTrailBucket
