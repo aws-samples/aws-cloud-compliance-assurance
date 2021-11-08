@@ -111,7 +111,11 @@ Resources:
         Statement:
           -
             Action:
-              - "s3:*"
+              - s3:GetObjectVersion
+              - s3:PutObject
+              - s3:GetObject
+              - s3:GetObjectVersionTagging
+              - s3:GetObjectVersionAcl
             Effect: "Allow"
             Resource:
               - !Sub arn:aws:s3:::${SCS3CloudTrailBucket}
@@ -121,7 +125,11 @@ Resources:
               - !Ref AWS::AccountId
           -
             Action:
-              - "s3:*"
+              - s3:GetObjectVersion
+              - s3:PutObject
+              - s3:GetObject
+              - s3:GetObjectVersionTagging
+              - s3:GetObjectVersionAcl
             Effect: "Allow"
             Resource:
               - !Sub arn:aws:s3:::${SCS3CloudTrailBucket}
@@ -204,31 +212,6 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub ServiceCatalog_CloudWatchLogs_Role-${AWS::Region}
-      Policies:
-      - PolicyName: SCCloudWatchLogsRolePolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - logs:DescribeLogStreams
-            - iam:PassRole
-            - ec2:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -238,6 +221,9 @@ Resources:
               - cloudtrail.amazonaws.com 
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
 
 #------------------------------------------------------------------------------------------
 # Misconfigured Resources:
