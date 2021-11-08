@@ -51,26 +51,6 @@ Resources:
   CreateSecurityHubCustomActionTargetLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: CreateActionTarget-LambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - securityhub:CreateActionTarget
-            - securityhub:DeleteActionTarget
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -78,6 +58,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.3 – Ensure the S3 bucket CloudTrail logs to is not publicly accessible
@@ -164,32 +148,6 @@ Resources:
   S3RemediationLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: S3RemediationLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - s3:GetBucketAcl
-            - s3:GetBucketPolicy
-            - s3:PutBucketAcl
-            - s3:PutBucketPolicy
-            - s3:PutBucketPublicAccessBlock
-            - iam:PassRole
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -197,6 +155,9 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.7 – Ensure CloudTrail logs are encrypted at rest using AWS KMS CMKs
@@ -304,30 +265,6 @@ Resources:
   CloudTrailEncryptionEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: CloudTrailEncryptionEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - kms:*
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -335,6 +272,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+      
   
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.8 – Ensure rotation for customer created CMKs is enabled
@@ -431,29 +372,6 @@ Resources:
   CMKBackingKeyRotationLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: CMKBackingKeyRotationLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -461,7 +379,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-  
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+      
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 4.1 and 4.2 –Checks whether security groups disallow unrestricted incoming SSH or RDP traffic
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -547,34 +468,6 @@ Resources:
   RestrictedSSHEnabledRemediationLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: RestrictedSSHEnabledRemediationLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - ec2:DescribeSecurityGroupReferences
-            - ec2:DescribeSecurityGroups
-            - ec2:UpdateSecurityGroupRuleDescriptionsEgress
-            - ec2:UpdateSecurityGroupRuleDescriptionsIngress
-            - ec2:RevokeSecurityGroupIngress
-            - ec2:RevokeSecurityGroupEgress
-            - ec2:*
-            - iam:PassRole
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -582,7 +475,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
- 
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+     
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -678,29 +574,6 @@ Resources:
   CloudTrailCloudWatchLogsLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: CloudTrailCloudWatchLogsLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -708,7 +581,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-  
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+     
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.1. – Ensure CloudTrail is enabled in all regions
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -796,30 +672,6 @@ Resources:
   CloudTrailEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: CloudTrailEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - cloudtrail:*
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -827,7 +679,11 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-  
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+
+
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.2 – Ensure CloudTrail log file validation is enabled
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -923,29 +779,6 @@ Resources:
   CloudTrailLogFileValidationEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: CloudTrailLogFileValidationEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -953,6 +786,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+
   
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 1.5,1.6,1.7.1.8,1.9,1.10,1.11. – IAM Account Settings related to Password Policy
@@ -1031,30 +868,6 @@ Resources:
   IAMPasswordPolicyEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: IAMPasswordPolicyEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            - iam:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1062,8 +875,11 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
   
+
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 1.3-1.4 – Disable and Rotate IAM Access Key that is older than 90 days
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1147,30 +963,6 @@ Resources:
   IAMRotate90daysEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: IAMRotate90daysEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            - iam:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1178,7 +970,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+   
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 1.12 – Deactivate Root Account IAM Access Key
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1262,30 +1057,6 @@ Resources:
   DeactivateRootIAMAccessKeyEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: DeactivateRootIAMAccessKeyEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            - iam:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1293,7 +1064,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-  
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+   
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 1.16 – Ensure IAM policies are attached only to groups or roles
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1381,30 +1155,6 @@ Resources:
   IAMUserPolicyDetachEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: IAMUserPolicyDetachEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            - iam:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1412,6 +1162,9 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
 
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1499,30 +1252,6 @@ Resources:
   IAMFullAdminPolicyDetachEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: IAMFullAdminPolicyDetachEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            - iam:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1530,7 +1259,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+     
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.6 – Ensure versioning is enabled on S3 buckets
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1616,30 +1348,6 @@ Resources:
   S3BucketEnableVersioningLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: S3BucketEnableVersioningLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            - s3:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1647,7 +1355,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+      
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.6 – Ensure server side encryption is enabled on S3 buckets
@@ -1733,31 +1444,6 @@ Resources:
   S3BucketServerSideEncryptionEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: S3BucketServerSideEncryptionEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            - s3:*
-            - kms:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1765,8 +1451,10 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-
-
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+    
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.6 – Ensure S3 bucket access logging is enabled on the CloudTrail S3 bucket
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1859,31 +1547,6 @@ Resources:
   S3BucketLoggingEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: S3BucketLoggingEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            - s3:*
-            - kms:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1891,7 +1554,9 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
-
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 2.9 – Ensure VPC flow logging is enabled in all VPCs
@@ -1990,30 +1655,6 @@ Resources:
   VPCFlowLogsEnabledLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      Policies:
-      - PolicyName: VPCFlowLogsEnabledLambdaPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - iam:PassRole
-            - ec2:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -2021,3 +1662,6 @@ Resources:
           Principal: { Service: lambda.amazonaws.com }
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
