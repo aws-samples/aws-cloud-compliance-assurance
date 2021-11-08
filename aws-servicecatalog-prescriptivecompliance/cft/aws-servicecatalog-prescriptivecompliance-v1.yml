@@ -377,8 +377,7 @@ Resources:
                       ruleName2,
                       ruleName3,
                       ruleName4,
-                      ruleName5,
-                      ruleName6
+                      ruleName5
                       ]
                   )
               except Exception as e:
@@ -392,12 +391,11 @@ Resources:
       Timeout: 60
       Environment:
         Variables:
-          ruleName1: 'cloud_trail_cloud_watch_logs_enabled'
-          ruleName2: 'cloud-trail-log-file-validation-enabled'
-          ruleName3: 'ReleaseElasticIP'
-          ruleName4: 'cis-iam-password-policy'
-          ruleName5: 'cmk-backing-key-rotation-enabled'
-          ruleName6: 'RestrictDefaultSecurityGroup'
+          ruleName1: 'cloud-trail-log-file-validation-enabled'
+          ruleName2: 'ReleaseElasticIP'
+          ruleName3: 'cis-iam-password-policy'
+          ruleName4: 'cmk-backing-key-rotation-enabled'
+          ruleName5: 'RestrictDefaultSecurityGroup'
 
   # On Demand Config Eval Role
   OnDemandConfigEvalLambdaRole:

@@ -4,7 +4,7 @@ Description: Service Catalog Compliance Remediations
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 #  
-# Reinforce 21 - Prescriptive Compliance
+# Reinvent 21 - Prescriptive Compliance
 # To be deployed by a Team Member in their Team Account
 # Provides automated detection and remediation for misconfigured resources
 # ---Integrates AWS Config Managed Rules with Custom AWS System Manager Automation Documents
@@ -104,55 +104,6 @@ Resources:
       MaximumAutomaticAttempts: 5
       RetryAttemptSeconds: 60
 
-# -------------------------------------------------------------------------------------------------------------------------------------------------------
-# PCI.CloudTrail.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
-# -------------------------------------------------------------------------------------------------------------------------------------------------------
-  CloudTrailCloudWatchLogsEnabled:
-    Type: AWS::Config::ConfigRule
-    Properties:
-      ConfigRuleName: cloud_trail_cloud_watch_logs_enabled
-      Description: >-
-        PCI.CloudTrail.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
-      Scope:
-        ComplianceResourceTypes:
-        - "AWS::CloudTrail::Trail"
-      Source:
-        Owner: AWS
-        SourceIdentifier: CLOUD_TRAIL_CLOUD_WATCH_LOGS_ENABLED
-      MaximumExecutionFrequency: One_Hour
-  CloudTrailCloudWatchLogsRemediation:
-    DependsOn: CloudTrailCloudWatchLogsEnabled
-    Type: 'AWS::Config::RemediationConfiguration'
-    Properties:
-      ConfigRuleName: cloud_trail_cloud_watch_logs_enabled
-      ResourceType: "AWS::CloudTrail::Trail"
-      TargetId: "Custom-SCCloudTrailUpdateCF"
-      TargetType: "SSM_DOCUMENT"
-      TargetVersion: "1"
-      Parameters:
-        AutomationAssumeRole:
-          StaticValue:
-            Values:
-              - !ImportValue SCAutomationAssumeRoleArn
-        SCCloudTrailLogGroupArn:
-          StaticValue:
-            Values:
-              - !ImportValue SCCloudTrailLogGroupArn
-        SCCloudWatchRoleArn:
-          StaticValue:
-            Values:
-              - !ImportValue SCCloudWatchRoleArn
-        TrailName:
-          ResourceValue:
-            Value: "RESOURCE_ID"
-      ExecutionControls:
-        SsmControls:
-          ConcurrentExecutionRatePercentage: 10
-          ErrorPercentage: 10
-      Automatic: True
-      MaximumAutomaticAttempts: 5
-      RetryAttemptSeconds: 60
-    
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 # PCI.CloudTrail.3 – Ensure CloudTrail log file validation is enabled
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
