@@ -814,7 +814,7 @@ Resources:
     Type: AWS::SSM::Document
     Properties:
       DocumentType: Automation
-      Name: Custom-RestrictSecurityGroup
+      Name: Custom-RestrictSecurityGroupCF
       Content:
         schemaVersion: '0.3'
         assumeRole: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AutomationAssumeRole}"

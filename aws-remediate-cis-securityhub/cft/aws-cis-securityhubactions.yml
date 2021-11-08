@@ -531,7 +531,7 @@ Resources:
               IpAddressToBlock = '0.0.0.0/0'
               try:
                   response = ssm.start_automation_execution(
-                      DocumentName='Custom-RestrictSecurityGroup',
+                      DocumentName='Custom-RestrictSecurityGroupCF',
                       DocumentVersion='1', # default
                       Parameters={
                           'groupId': [ securitygroup],
