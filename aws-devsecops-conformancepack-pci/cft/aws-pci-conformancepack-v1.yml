@@ -49,7 +49,7 @@ Resources:
                   AutomationAssumeRole:
                     StaticValue:
                       Values:
-                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                        - arn:aws:iam::<accountid>:role/pciautomationassumerole-<region>
                   ASGGroupArn:
                     ResourceValue:
                       Value: "RESOURCE_ID"
@@ -85,7 +85,7 @@ Resources:
                   AutomationAssumeRole:
                     StaticValue:
                       Values:
-                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                        - arn:aws:iam::<accountid>:role/pciautomationassumerole-<region>
                   groupId:
                     ResourceValue:
                       Value: "RESOURCE_ID"
@@ -121,7 +121,7 @@ Resources:
                   AutomationAssumeRole:
                     StaticValue:
                       Values:
-                        - arn:aws:iam::<accountid>:role/automationassumerole-<region>
+                        - arn:aws:iam::<accountid>:role/pciautomationassumerole-<region>
                   IpAddressToBlock:
                     StaticValue:
                       Values:

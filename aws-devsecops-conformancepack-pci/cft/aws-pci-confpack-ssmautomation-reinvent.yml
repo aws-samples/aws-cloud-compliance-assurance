@@ -1,0 +1,228 @@
+
+# -------------------------------------------------------------------------------------------------
+# CloudFormation Template 1 of 2 - 
+#
+# Provisions Custom AWS Systems Manager Automation Documents 
+# These SSM Automations are used for Remediations with Custom AWS Config Conformance Packs
+#
+
+# @kmmahaj
+# ---------------------------------------------------------------------------------------------------
+
+
+
+Resources:
+
+# ------------------------------------------------------------------------------------------
+# PCI Remediations with AWS Config Conformance Pack - Pre-requesites
+#
+# Exported above. Pre-req AWS Services used in the Custom PCI Conformance Pack
+#
+# @kanishk.mahajan
+# ---------------------------------------------------------------------------------------------
+
+
+# SSM Automation Role
+  AutomationAssumeRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub pciautomationassumerole-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ssm.amazonaws.com
+                - events.amazonaws.com
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.2] VPC default security group should prohibit inbound and outbound traffic
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  RestrictSecurityGroupPublicAccess:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-RestrictSecurityGroup
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          groupId:
+            type: String
+          IpAddressToBlock:
+            type: String
+            default: '0.0.0.0/0'
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+        mainSteps:
+          - name: RestrictSecurityGroup
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: restrict_sg
+              Script: "def restrict_sg(events, context):\r\n  import boto3\r\n  import json\r\n  import os\r\n  ec2 = boto3.resource('ec2')\r\n  defaultSecGroupId = events['groupId']\r\n  try:\r\n      defaultSG = ec2.SecurityGroup(defaultSecGroupId)\r\n      defaultIngress = defaultSG.ip_permissions\r\n      defaultEgress = defaultSG.ip_permissions_egress\r\n      revokeIngress = defaultSG.revoke_ingress(IpPermissions=defaultIngress)\r\n      revokeEgress = defaultSG.revoke_egress(IpPermissions=defaultEgress)\r\n  except Exception as e:\r\n      print(e)"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                groupId: '{{groupId}}'
+                IpAddressToBlock: '{{IpAddressToBlock}}'
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.3] Unused EC2 security groups should be removed
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  RemoveSecurityGroup:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-RemoveSecurityGroup
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          groupId:
+            type: String
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+        mainSteps:
+          - name: RemoveSecurityGroup
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: script_handler
+              Script: "def script_handler(events, context):\r\n  import boto3\r\n  ec2 = boto3.client('ec2')\r\n\r\n  groupId = events['groupId']\r\n  \r\n  response = ec2.delete_security_group(\r\n    GroupId= groupId\r\n  )\r\n "
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                groupId: '{{groupId}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.4] Unused EC2 EIPs should be removed
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  ReleaseEIP:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-ReleaseEIP
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+          allocationId:
+            type: String       
+        mainSteps:
+          - name: ReleaseEIP
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: script_handler
+              Script: "def script_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('ec2')\r\n\r\n  allocationId = events['allocationId']\r\n\r\n  response = client.release_address(\r\n    AllocationId= allocationId\r\n  )"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                allocationId: '{{allocationId}}'
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.AutoScaling.1] Auto scaling groups associated with a load balancer should use health checks
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  AutoScalingELBHealthCheck:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-AutoScalingELBHealthCheck
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+          ASGGroupArn:
+            type: String 
+        mainSteps:
+          - name: AutoScalingELBHealthCheck
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: script_handler
+              Script: |
+                def script_handler(events, context):
+                  import boto3
+                  import json
+                  import os
+                  client = boto3.client('autoscaling')
+                  try:
+                     ASGGroupArn = events['ASGGroupArn']
+                     ASGId_1 = ASGGroupArn.split(':')[-1]
+                     ASGGroupName = ASGId_1.replace("autoScalingGroupName/","")
+                     response = client.update_auto_scaling_group(
+                        AutoScalingGroupName= ASGGroupName,
+                        HealthCheckType='ELB',
+                        HealthCheckGracePeriod=300
+                     )
+                  except Exception as e:
+                     print(e)
+                     raise 
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                ASGGroupArn: '{{ASGGroupArn}}'

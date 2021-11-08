@@ -203,7 +203,7 @@ Resources:
   AutomationAssumeRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub automationassumerole-${AWS::Region}
+      RoleName: !Sub pciautomationassumerole-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
