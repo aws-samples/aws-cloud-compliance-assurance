@@ -115,7 +115,11 @@ Resources:
         Statement:
           -
             Action:
-              - "s3:*"
+              - s3:GetObjectVersion
+              - s3:PutObject
+              - s3:GetObject
+              - s3:GetObjectVersionTagging
+              - s3:GetObjectVersionAcl
             Effect: "Allow"
             Resource:
               - !Sub arn:aws:s3:::${S3LoggingBucket}
@@ -123,16 +127,7 @@ Resources:
             Principal:
               AWS:
               - !Ref AWS::AccountId
-          -
-            Effect: Deny
-            Principal: "*"
-            Action: "*"
-            Resource:
-              - !Sub arn:aws:s3:::${S3LoggingBucket}
-              - !Sub arn:aws:s3:::${S3LoggingBucket}/*
-            Condition:
-              Bool:
-                aws:SecureTransport: 'false'
+
 
 # S3 Bucket for Bucket Logging
   S3LoggingBucket:
@@ -226,31 +221,6 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub CloudTrail_CloudWatchLogs_Role-${AWS::Region}
-      Policies:
-      - PolicyName: CloudWatchLogsRolePolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - logs:DescribeLogStreams
-            - iam:PassRole
-            - ec2:*
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -260,6 +230,10 @@ Resources:
               - cloudtrail.amazonaws.com 
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
 
 # S3 Bucket Replication Role
   S3BucketReplicationRole:
