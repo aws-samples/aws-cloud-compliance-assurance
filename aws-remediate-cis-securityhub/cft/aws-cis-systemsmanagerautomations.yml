@@ -87,7 +87,12 @@ Resources:
         Statement:
           -
             Action:
-              - "s3:*"
+              - s3:PutObject
+              - s3:PutBucketLogging
+              - s3:PutBucketVersioning
+              - s3:GetObject
+              - s3:GetBucketLocation
+              - s3:ListBucket
             Effect: "Allow"
             Resource:
               - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}
@@ -97,7 +102,12 @@ Resources:
               - !Ref AWS::AccountId
           -
             Action:
-              - "s3:*"
+              - s3:PutObject
+              - s3:PutBucketLogging
+              - s3:PutBucketVersioning
+              - s3:GetObject
+              - s3:GetBucketLocation
+              - s3:ListBucket
             Effect: "Allow"
             Resource:
               - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}
@@ -105,16 +115,7 @@ Resources:
             Principal:
               Service:
               - cloudtrail.amazonaws.com
-          -
-            Effect: Deny
-            Principal: "*"
-            Action: "*"
-            Resource:
-              - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}
-              - !Sub arn:${AWS::Partition}:s3:::${CISS3CloudTrailBucket}/*
-            Condition:
-              Bool:
-                aws:SecureTransport: 'false'
+      
 
 # S3 Bucket to store CloudTrail logs
   CISS3CloudTrailBucket:
