@@ -267,30 +267,6 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub CloudTrail_CloudWatchLogs_Role-${AWS::Region}
-      Policies:
-      - PolicyName: CloudWatchLogsRolePolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - cloudwatch:PutMetricData
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - ssm:StartAutomationExecution
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - logs:DescribeLogStreams
-            - iam:PassRole
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - cloudtrail:UpdateTrail
-            - securityhub:UpdateFindings
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -300,6 +276,10 @@ Resources:
               - cloudtrail.amazonaws.com 
           Action:
           - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+
 
 # CIS KMS CMK
   KmsKeyId:
