@@ -196,8 +196,23 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Path: /
-      ManagedPolicyArns:
-        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+      Policies:
+      - PolicyName: SCSSMRemidationPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:ReleaseAddress
+            - cloudtrail:UpdateTrail
+            - kms:EnableKeyRotation
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource:
+              !Sub |-
+                arn:aws:iam::${AWS::AccountId}:role/ServiceCatalog_CloudWatchLogs_Role-${AWS::Region}
 
 #CloudTrail CW Log Group
   SCCloudTrailLogGroup: 
@@ -212,6 +227,16 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub ServiceCatalog_CloudWatchLogs_Role-${AWS::Region}
+      Policies:
+      - PolicyName: SCCloudWatchLogsRolePolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: "*"
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -222,8 +247,6 @@ Resources:
           Action:
           - sts:AssumeRole
       Path: /
-      ManagedPolicyArns:
-        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
 
 #------------------------------------------------------------------------------------------
 # Misconfigured Resources:
@@ -387,7 +410,16 @@ Resources:
   OnDemandConfigEvalLambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub reinforce-OnDemandConfigEvalLambdaRole-${AWS::Region}
+      RoleName: !Sub reinvent-OnDemandConfigEvalLambdaRole-${AWS::Region}
+      Policies:
+      - PolicyName: SCOnDemandConfigEvalPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - config:PutEvaluations
+            Resource: "*"
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -399,7 +431,7 @@ Resources:
               - 'sts:AssumeRole'
       Path: /
       ManagedPolicyArns:
-        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 
 #------------------------------------------------------------------------------------------
 # Service Catalog Portfolio that contains the ConfigRemediations Conformance Pack Product
