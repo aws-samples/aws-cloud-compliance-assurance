@@ -116,20 +116,23 @@ Resources:
           PolicyDocument:
             Version: 2012-10-17
             Statement:
-              - Sid: '1'
-                Action:
-                  - s3:PutObject
-                  - s3:PutBucketLogging
-                  - s3:PutBucketVersioning
-                  - s3:GetObject
-                  - s3:GetBucketLocation
-                  - s3:ListBucket
-                Effect: Allow
-                Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}
-                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/*
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:PutBucketLogging
+                - s3:PutBucketVersioning
+                - s3:GetObject
+                - s3:GetBucketLocation
+                - s3:ListBucket
+              Resource:
+                - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}
+                - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/*
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+                - ssm:PutParameter
+              Resource: '*'
       ManagedPolicyArns:
         - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AWSAuditManagerAdministratorAccess'
-        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess'
         - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
 
