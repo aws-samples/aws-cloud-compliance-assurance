@@ -206,6 +206,7 @@ Resources:
             - ec2:ReleaseAddress
             - cloudtrail:UpdateTrail
             - kms:EnableKeyRotation
+            - iam:UpdateAccountPasswordPolicy
             Resource: '*'
           - Effect: Allow
             Action:
