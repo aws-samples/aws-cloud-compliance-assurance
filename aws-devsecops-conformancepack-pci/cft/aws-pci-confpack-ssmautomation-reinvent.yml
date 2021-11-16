@@ -27,6 +27,19 @@ Resources:
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Sub pciautomationassumerole-${AWS::Region}
+      Policies:
+      - PolicyName: PCISSMRemidationPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:ReleaseAddress
+            - ec2:DescribeSecurityGroups
+            - ec2:DeleteSecurityGroup
+            - ec2:RevokeSecurityGroupEgress
+            - ec2:RevokeSecurityGroupIngress
+            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -39,9 +52,6 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/IAMFullAccess
-        - arn:aws:iam::aws:policy/AdministratorAccess
 
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------

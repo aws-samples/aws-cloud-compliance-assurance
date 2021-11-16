@@ -208,9 +208,6 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/IAMFullAccess
-        - arn:aws:iam::aws:policy/AdministratorAccess
       Policies:
       - PolicyName: Codepipeline-base-policy
         PolicyDocument:
@@ -231,6 +228,7 @@ Resources:
                 - 's3:GetBucketPolicy'
                 - 's3:GetBucketPolicyStatus'
                 - 's3:PutBucketPolicy'
+                - 's3:DeleteObject'
               Resource: '*'
             - Effect: Allow
               Action:
@@ -251,6 +249,7 @@ Resources:
                 - 'cloudformation:ListStacks'
                 - 'cloudformation:ValidateTemplate'
                 - 'cloudformation:SetStackPolicy'
+                - 'cloudformation:CreateStackSet'
               Resource: '*'
             - Effect: Allow
               Action:
@@ -296,6 +295,12 @@ Resources:
               Action:
                 - 'lambda:InvokeFunction'
                 - 'lambda:ListFunctions'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'sts:GetCallerIdentity'
+                - 'kms:Decrypt'
+                - 'kms:GenerateDataKey'
               Resource: '*'
 
         
