@@ -379,7 +379,7 @@ Resources:
                   ruleName3 = os.environ['ruleName3']
                   ruleName4 = os.environ['ruleName4']
                   ruleName5 = os.environ['ruleName5']
-                  ruleName6 = os.environ['ruleName6']
+    
                   client = boto3.client('config')
                   response = client.start_config_rules_evaluation(
                       ConfigRuleNames=[
@@ -420,6 +420,7 @@ Resources:
           - Effect: Allow
             Action:
             - config:PutEvaluations
+            - config:StartConfigRulesEvaluation
             Resource: "*"
       AssumeRolePolicyDocument:
         Version: 2012-10-17
