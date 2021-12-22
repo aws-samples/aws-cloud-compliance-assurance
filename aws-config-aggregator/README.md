@@ -10,7 +10,7 @@
 4. If the Config Aggregator is configured to collect data from individual source accounts then each source account must provide authorization for the data to be collected. If the Config Aggregator is configured to collect data from an AWS organization then explicit authorization from a source account is not required.
 
 
-## Option 1: Use OrganizationEnableRecorderAndAggregator.yaml - Create Config Aggregator in aggregator account for data collection across the AWS Organizaiton
+## Option 1: Use OrganizationEnableRecorderAndAggregator.yaml - Create Config Aggregator in aggregator account for data collection across the AWS Organization
 
 1. Enables AWS Config in your account if Config is not already enabled. Provisions recorder, delivery channel, S3 bucket and bucket policy required to enable Config
 2. Launch this template from the aggregator account. Creates an AWS Config Aggregator from the aggregator account. It uses a service linked role that retrieves AWS Organization details associated with the aggregator account.

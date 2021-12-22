@@ -34,6 +34,11 @@ Resources:
 
   ConfigBucket:
     Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
 
   ConfigBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -51,6 +56,15 @@ Resources:
             Action: s3:GetBucketAcl
             Resource:
               - !Sub "arn:aws:s3:::${ConfigBucket}"
+          - Sid: DisallowHTTP
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub "arn:aws:s3:::${ConfigBucket}"
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
           - Sid: AWSConfigBucketDelivery
             Effect: Allow
             Principal:
