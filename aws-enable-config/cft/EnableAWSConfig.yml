@@ -115,6 +115,13 @@ Resources:
   ConfigBucket:
     DeletionPolicy: Retain
     Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "s3-configbucket-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
 
   ConfigBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -131,6 +138,15 @@ Resources:
             Action: s3:GetBucketAcl
             Resource:
               - !Sub "arn:${AWS::Partition}:s3:::${ConfigBucket}"
+          - Sid: DisallowHTTP
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub "arn:aws:s3:::${ConfigBucket}"
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
           - Sid: AWSConfigBucketDelivery
             Effect: Allow
             Principal:
