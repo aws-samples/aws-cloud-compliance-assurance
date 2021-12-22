@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 
 #  Provisions custom AWS Audit Manager assessment based on Config checks that create a conformance pack
-#  Pre-req: AWS Lambda that creates a custom AWS Audit Manager control set and custom AWS Audit Manager 
+#  Pre-req: AWS Lambda that creates a custom AWS Audit Manager control set and custom AWS Audit Manager
 #  framework
 
 
@@ -14,7 +14,7 @@ Description: >-
   billed for the AWS resources used if you create a stack from this template.
 Parameters:
   SourceBucket:
-    Description: S3 Bucket that contains the Custom Audit Manager Framework Lambda 
+    Description: S3 Bucket that contains the Custom Audit Manager Framework Lambda
     Type: String
     Default: 's3-customauditmanagerframework-<AccountId>-<Region>'
     MinLength: '1'
@@ -29,12 +29,12 @@ Parameters:
 Resources:
 
 #---------------------------------------------------------------------------------------------------
-#  
+#
 #  1- Create Custom Audit Manager Control Sets based on AWS Config Conformance Pack checks
 #  2- Create Custom Audit Manager Framework based on custom Audit Manager control set
 # --------------------------------------------------------------------------------------------------
 
-#Custom Lambda backed Resource for creating the Custom Audit Manager Framework 
+#Custom Lambda backed Resource for creating the Custom Audit Manager Framework
   CreateCustomAuditManagerFramework:
     Type: 'Custom::CreateCustomAuditManagerFramework'
     DependsOn:
@@ -56,14 +56,14 @@ Resources:
   CustomAuditManagerFrameworkLambda:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: !Join 
+      FunctionName: !Join
         - ''
         - - CustomAuditManagerFramework_
           - Lambda
       Role: !GetAtt CustomAuditManagerFrameworkLambdaRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
-        S3Key: !Join 
+        S3Key: !Join
           - ''
           - - CustomAuditManagerFramework_Lambda
             - /
@@ -73,8 +73,6 @@ Resources:
       Handler: CustomAuditManagerFramework_Lambda.lambda_handler
       MemorySize: '256'
       Runtime: python3.7
-      Layers:
-        - !Ref AuditManagerLayer
       Environment:
         Variables:
           SourceAccountId : !Ref 'AWS::AccountId'
@@ -82,21 +80,6 @@ Resources:
           S3Bucket: !Ref SourceBucket
 
       Timeout: 300
-
-#Lambda Layer for AWS Audit Manager
-  AuditManagerLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      CompatibleRuntimes:
-        - python3.6
-        - python3.7
-        - python3.8
-      Content:
-        S3Bucket: !Ref SourceBucket
-        S3Key: auditmanagerlayer.zip
-      Description: Boto3 layer for audit manager
-      LayerName: AuditManagerLayer
-      LicenseInfo: MIT
 
 #IAM Role for the CustomAuditManagerFramework Lambda
   CustomAuditManagerFrameworkLambdaRole:
