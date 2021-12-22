@@ -273,7 +273,13 @@ Resources:
   SCS3MisconfiguredCloudTrailBucket: 
     DeletionPolicy: Retain
     Type: AWS::S3::Bucket
-    Properties: {}
+    Properties: 
+      BucketName: !Sub "s3-misconfigbucket-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
   MisconfiguredBucketPolicy: 
     Type: AWS::S3::BucketPolicy
     Properties: 
@@ -291,6 +297,17 @@ Resources:
             Resource: 
               !Sub |-
                 arn:aws:s3:::${SCS3MisconfiguredCloudTrailBucket}
+          - 
+            Sid: "AWSHTTPSAccess"
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              !Sub |-
+                arn:aws:s3:::${SCS3MisconfiguredCloudTrailBucket}
+             Condition:
+              Bool:
+                'aws:SecureTransport': false
           - 
             Sid: "AWSCloudTrailWrite"
             Effect: "Allow"

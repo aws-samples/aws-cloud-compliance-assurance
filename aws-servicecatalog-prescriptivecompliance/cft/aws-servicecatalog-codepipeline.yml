@@ -56,6 +56,12 @@ Resources:
 # Bucket gets populated during pipeline execution (CodeCommit). Triggered via Git checkin.
   CodePipelineArtifactStoreBucket:
     Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  
   CodePipelineArtifactStoreBucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
     Properties:
