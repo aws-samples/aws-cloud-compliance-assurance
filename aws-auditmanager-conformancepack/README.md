@@ -28,8 +28,6 @@ Pre-req- Takes a csv as input that comprises of all the Config rules within the 
 
 4. Upload the mapping file to the top directory of the S3 bucket you created in Step 3. This mapping file is a csv that maps the control name of the compliance framework to the list of AWS Config Rules in the conformance pack. Sample mapping file for NIST-CSF is provided here--nistmappingcsv1.csv (in the mappingfile folder) 
 
-4. Audit Manager works with the Boto3 1.7 libraries. AWS Lambda doesn’t ship with Boto3 1.7 by default. This implementation provides that version of Boto3 as a Lambda layer. Upload the auditmanagerlayer.zip (in the lambda folder) to the top directory of the S3 bucket you created in step 3.
-
 5. Create an IAM user with Audit owner permissions. https://docs.aws.amazon.com/audit-manager/latest/userguide/security_iam_service-with-iam.html#security_iam_service-with-iam-id-based-policies. You can use the AWSAuditManagerAdministratorAccess policy as a starting point but please remember to scope down these permissions as needed to fit your requirements.
 
 6. If you have already configured an assessment reports destination in your Audit Manager settings then you can skip this step. Otherwise for our solution you can simply reuse the S3 bucket from step 3 and create another folder for e.g. evidences. Your assessment reports destination will be the S3 URI for e.g. s3://s3-customauditmanagerframework-AccountId-Region/evidences/ in this case where AccountId is your AWS account ID and Region is the AWS Region where you plan to deploy the CloudFormation templates in the setup.
