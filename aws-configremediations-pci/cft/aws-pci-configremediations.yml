@@ -1,0 +1,1136 @@
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  CloudFormation Template 2 of 2 - Real Time Automated Remediation for PCI DSS Findings based on Security Hub 
+#  
+#  Pre-req : Uses the AWS SSM Automation CloudFormation Template. 
+#  This template integrates AWS Security Hub custom actions with Custom AWS SSM Automation Remediation Documents
+# 
+# @author Kanishk Mahajan
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+Parameters:
+  EmailAddress:
+    Description: Email Address for notifications for PCI.CW.1
+    Type: String
+    Default:  admin@example.com
+
+Resources:
+
+# SNS topic for CloudWatch Alarm Notifications
+  AlarmNotificationTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: AlarmNotificationTopic
+      TopicName: AlarmNotificationTopic
+
+# Email Subscription for SNS topic
+  AlarmEmailSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      Protocol: email
+      Endpoint: !Ref EmailAddress
+      TopicArn: !Ref AlarmNotificationTopic
+
+# CloudTrail CloudWatch Log Group
+  CloudTrailLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub DefaultLogGroup-PCI-${AWS::Region}
+      RetentionInDays: 180
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.S3.1 – S3 Buckets should prohibit public write access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  S3BucketPublicWriteProhibited:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: S3BucketPublicWriteProhibited
+      Description: >-
+        "PCI.S3.1 - S3 Buckets should prohibit public write access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_WRITE_PROHIBITED
+      MaximumExecutionFrequency: One_Hour
+  S3PublicWriteRemediation:
+    DependsOn: S3BucketPublicWriteProhibited
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3BucketPublicWriteProhibited
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-DisableS3BucketPublicReadWrite"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        S3BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.S3.2 – S3 Buckets should prohibit public read access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  S3BucketPublicReadProhibited:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: S3BucketPublicReadProhibited
+      Description: >-
+        "PCI.S3.2 - S3 Buckets should prohibit public read access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED
+      MaximumExecutionFrequency: One_Hour
+  S3PublicReadRemediation:
+    DependsOn: S3BucketPublicReadProhibited
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3BucketPublicReadProhibited
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-DisableS3BucketPublicReadWrite"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        S3BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# ------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CW.1] A log metric filter and alarm should exist for usage of the "root" user
+# PCI.CW.1 A log metric filter and alarm should exist for usage of the "root" user
+# ------------------------------------------------------------------------------------------------------------------------------------
+  RootAccountLoginsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DependsOn:
+    - NoMfaConsoleLoginsAlarm
+    Properties:
+      AlarmName: PCI-Root Activity
+      AlarmDescription: Alarm if a 'root' user uses the account
+      MetricName: RootUserEventCount
+      Namespace: LogMetrics
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+  RootAccountLoginsFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CloudTrailLogGroup
+      FilterPattern: |-
+        {
+          $.userIdentity.type = "Root" &&
+          $.userIdentity.invokedBy NOT EXISTS &&
+          $.eventType != "AwsServiceEvent"
+        }
+      MetricTransformations:
+      - MetricValue: '1'
+        MetricNamespace: LogMetrics
+        MetricName: RootUserEventCount
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CW.1] A log metric filter and alarm should exist for usage of the "root" user - alarms if management console login without MFA
+# ------------------------------------------------------------------------------------------------------------------------------------
+  NoMfaConsoleLoginsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: CIS-Console Signin Without MFA
+      AlarmDescription: Alarm if there is a Management Console sign-in without MFA
+      MetricName: ConsoleSigninWithoutMFA
+      Namespace: LogMetrics
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+  NoMfaConsoleLoginsFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CloudTrailLogGroup
+      FilterPattern: |-
+        {
+          ($.eventName = "ConsoleLogin") &&
+          ($.additionalEventData.MFAUsed != "Yes")
+        }
+      MetricTransformations:
+      - MetricValue: '1'
+        MetricNamespace: LogMetrics
+        MetricName: ConsoleSigninWithoutMFA
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.CloudTrail.1 – Ensure CloudTrail logs are encrypted at rest using AWS KMS CMKs
+# 
+# Leverages custom SSM Automation document for remediation
+# Adds custom SSM Automation document to the Config Remediation
+#
+# Repeats same pattern above for each PCI remediation
+# 
+# @kanishk.mahajan
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  
+  CloudTrailEncryptionEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: CloudTrailEncryptionEnabled
+      Description: >-
+        PCI.CloudTrail.1 – Ensure CloudTrail logs are encrypted at rest using AWS KMS CMKs
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_ENCRYPTION_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailEncryptionRemediation:
+    DependsOn: CloudTrailEncryptionEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: CloudTrailEncryptionEnabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "Custom-CloudTrailEncryptionCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        CloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudTrailLogGroupArn
+        CloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudWatchRoleArn
+        KMSKeyArn:
+          StaticValue:
+            Values:
+              - !ImportValue KMSKeyArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.KMS.1 – Ensure rotation for customer created CMKs is enabled
+# 
+# Provisions a custom security hub action 
+# Leverages the custom security hub action as source for CWE rule 
+# Provisions a lambda as a CWE target for custom action
+# Leverages custom SSM Automation document for remediation
+# Repeats same pattern above for each PCI remediation
+# 
+# @kanishk.mahajan
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  CMKBackingKeyRotation:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      Description: >-
+        PCI.KMS.1 – Ensure rotation for customer created CMKs is enabled
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::KMS::Key"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CMK_BACKING_KEY_ROTATION_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CMKBackingKeyRotationRemediation:
+    DependsOn: CMKBackingKeyRotation
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      ResourceType: "AWS::KMS::Key"
+      TargetId: "Custom-CMKBackingKeyRotationCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        KMSKeyArn:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.EC2.3 – Unused EC2 Security Groups should be removed
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RemoveUnusedEC2SecurityGroups:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: RemoveUnusedEC2SecurityGroups
+      Description: >-
+        PCI.EC2.3 – Unused EC2 Security Groups should be removed
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::EC2::SecurityGroup"
+      Source:
+        Owner: AWS
+        SourceIdentifier: EC2_SECURITY_GROUP_ATTACHED_TO_ENI
+  RemoveUnusedEC2SecurityGroupsRemediation:
+    DependsOn: RemoveUnusedEC2SecurityGroups
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RemoveUnusedEC2SecurityGroups
+      ResourceType: "AWS::EC2::SecurityGroup"
+      TargetId: "Custom-RemoveSecurityGroup"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        groupId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+    
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.EC2.2 VPC default security group should prohibit inbound and outbound traffic
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RestrictDefaultSecurityGroup:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: RestrictDefaultSecurityGroup
+      Description: >-
+        PCI.EC2.2 VPC default security group should prohibit inbound and outbound traffic
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::EC2::SecurityGroup"
+      Source:
+        Owner: AWS
+        SourceIdentifier: VPC_DEFAULT_SECURITY_GROUP_CLOSED
+  RestrictDefaultSecurityGroupRemediation:
+    DependsOn: RestrictDefaultSecurityGroup
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RestrictDefaultSecurityGroup
+      ResourceType: "AWS::EC2::SecurityGroup"
+      TargetId: "Custom-RestrictSecurityGroup"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        IpAddressToBlock:
+          StaticValue:
+            Values:
+              - '0.0.0.0/0'
+        groupId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+ 
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.AutoScaling.1] Auto scaling groups associated with a load balancer should use health checks
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  AutoScalingELBHealthCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: AutoScalingELBHealthCheck
+      Description: >-
+        [PCI.AutoScaling.1] Auto scaling groups associated with a load balancer should use health checks
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::AutoScaling::AutoScalingGroup"
+      Source:
+        Owner: AWS
+        SourceIdentifier: AUTOSCALING_GROUP_ELB_HEALTHCHECK_REQUIRED
+  AutoScalingELBHealthCheckRemediation:
+    DependsOn: AutoScalingELBHealthCheck
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: AutoScalingELBHealthCheck
+      ResourceType: "AWS::AutoScaling::AutoScalingGroup"
+      TargetId: "Custom-AutoScalingELBHealthCheck"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        ASGGroupArn:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CodeBuild.2] CodeBuild project environment variables should not contain clear text credentials
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  CodeBuildProjectEnvVariableCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: CodeBuildProjectEnvVariableCheck
+      Description: >-
+        [PCI.CodeBuild.2] CodeBuild project environment variables should not contain clear text credentials
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CodeBuild::Project"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CODEBUILD_PROJECT_ENVVAR_AWSCRED_CHECK
+  CodeBuildProjectEnvVariableCheckRemediation:
+    DependsOn: CodeBuildProjectEnvVariableCheck
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: CodeBuildProjectEnvVariableCheck
+      ResourceType: "AWS::CodeBuild::Project"
+      TargetId: "Custom-CodeBuildUpdateProject"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        projectName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.4] Unused EC2 EIPs should be removed
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  ReleaseElasticIP:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: ReleaseElasticIP
+      Description: >-
+        [PCI.EC2.4] Unused EC2 EIPs should be removed
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::EC2::EIP"
+      Source:
+        Owner: AWS
+        SourceIdentifier: EIP_ATTACHED
+  ReleaseElasticIPRemediation:
+    DependsOn: ReleaseElasticIP
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: ReleaseElasticIP
+      ResourceType: "AWS::EC2::EIP"
+      TargetId: "AWS-ReleaseElasticIP"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        AllocationId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.CloudTrail.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  CloudTrailCloudWatchLogsEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud_trail_cloud_watch_logs_enabled
+      Description: >-
+        PCI.CloudTrail.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_CLOUD_WATCH_LOGS_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailCloudWatchLogsRemediation:
+    DependsOn: CloudTrailCloudWatchLogsEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloud_trail_cloud_watch_logs_enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "Custom-CloudTrailUpdateCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        CloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudTrailLogGroupArn
+        CloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudWatchRoleArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.CloudTrail.2 – Ensure CloudTrail is enabled in all regions
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  CloudTrailEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloudtrail-enabled
+      Description: >-
+        PCI.CloudTrail.2 – Ensure CloudTrail is enabled in all regions
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailEnabledRemediation:
+    DependsOn: CloudTrailEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloudtrail-enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "AWS-EnableCloudTrail"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        S3BucketName:
+          StaticValue:
+            Values:
+              - !ImportValue CISS3CloudTrailBucket
+        TrailName:
+          StaticValue:
+            Values:
+              - !ImportValue CISCloudTrail
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+    
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.CloudTrail.3 – Ensure CloudTrail log file validation is enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  CloudTrailLogFileValidationEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      Description: >-
+        PCI.CloudTrail.3 – Ensure CloudTrail log file validation is enabled
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_LOG_FILE_VALIDATION_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailLogFileValidationRemediation:
+    DependsOn: CloudTrailLogFileValidationEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "Custom-LogFileValidationCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        CloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudTrailLogGroupArn
+        CloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue CloudWatchRoleArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.IAM.1 – Deactivate Root Account IAM Access Key
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  DeactivateRootIAMAccessKey:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: DeactivateRootIAMAccessKey
+      Description: >-
+        PCI.IAM.1 – Deactivate Root Account IAM Access Key
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_ROOT_ACCESS_KEY_CHECK
+  DeactivateRootIAMAccessKeyRemediation:
+    DependsOn: DeactivateRootIAMAccessKey
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: DeactivateRootIAMAccessKey
+      TargetId: "Custom-DeactivateRootIAMAccessKeyCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        username:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.IAM.2 – IAM users should not have IAM Policies attached. Ensure IAM policies are attached only to groups or roles
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  IAMUserPolicyDetach:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: IAMUserPolicyDetach
+      Description: >-
+        PCI.IAM.2 – IAM users should not have IAM Policies attached. Ensure IAM policies are attached only to groups or roles
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_ROOT_ACCESS_KEY_CHECK
+  IAMUserPolicyDetachRemediation:
+    DependsOn: IAMUserPolicyDetach
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: IAMUserPolicyDetach
+      TargetId: "Custom-IAMUserPolicyDetachCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        username:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI.IAM.3 – Ensure IAM policies that allow full "*:*" administrative privileges are not created
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  IAMFullAdminPolicyDetach:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: IAMFullAdminPolicyDetach
+      Description: >-
+        PCI.IAM.3 – Ensure IAM policies that allow full "*:*" administrative privileges are not created
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS
+  IAMFullAdminPolicyDetachRemediation:
+    DependsOn: IAMFullAdminPolicyDetach
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: IAMFullAdminPolicyDetach
+      TargetId: "Custom-IAMFullAdminPolicyDetachCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        accountid:
+          StaticValue:
+            Values:
+              - !Ref 'AWS::AccountId'
+        policyresourceid:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  PCI.S3.4 - Ensure server side encryption is enabled on S3 buckets
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  S3BucketServerSideEncryptionEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: S3BucketServerSideEncryptionEnabled
+      Description: " PCI.S3.4 - Ensure server side encryption is enabled on S3 buckets"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+  S3BucketServerSideEncryptionEnabledRemediation:
+    DependsOn: S3BucketServerSideEncryptionEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3BucketServerSideEncryptionEnabled
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-EnableS3BucketEncryption"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        SSEAlgorithm:
+          StaticValue:
+            Values:
+              - "AES256"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.S3.3] S3 buckets should have cross-region replication enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  S3ReplicationEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: S3ReplicationEnabled
+      Description: "[PCI.S3.3] S3 buckets should have cross-region replication enabled"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_REPLICATION_ENABLED
+  S3ReplicationEnabledRemediation:
+    DependsOn: S3ReplicationEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3ReplicationEnabled
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "Custom-EnableS3Replication"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        S3IAMReplicationRole:
+          StaticValue:
+            Values:
+              - !ImportValue S3BucketReplicationRoleArn
+        DestinationBucketName:
+          StaticValue:
+            Values:
+              - !ImportValue S3ReplicationBucketFullName
+        SourceBucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        SSEAlgorithm:
+          StaticValue:
+            Values:
+              - "AES256"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [PCI.Lambda.1] Lambda functions should prohibit public access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RestrictPublicAccessLambdaEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RestrictPublicAccessLambdaEnabled
+      Description: "PCI.Lambda.1 Lambda functions should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::Lambda::Function"
+      Source:
+        Owner: AWS
+        SourceIdentifier: LAMBDA_FUNCTION_PUBLIC_ACCESS_PROHIBITED
+  RestrictPublicAccessLambdaRemediation:
+    DependsOn: RestrictPublicAccessLambdaEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RestrictPublicAccessLambdaEnabled
+      ResourceType: "AWS::Lambda::Function"
+      TargetId: "Custom-RestrictPublicLambda"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        accountID:
+          StaticValue:
+            Values:
+              - !Ref 'AWS::AccountId'
+        functionname:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [PCI.Lambda.2] Lambda functions should be in a VPC
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RestrictLambdaVPC:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RestrictLambdaVPC
+      Description: " [PCI.Lambda.2] Lambda functions should be in a VPC"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::Lambda::Function"
+      Source:
+        Owner: AWS
+        SourceIdentifier: LAMBDA_INSIDE_VPC
+  RestrictLambdaVPCRemediation:
+    DependsOn: RestrictLambdaVPC
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RestrictLambdaVPC
+      ResourceType: "AWS::Lambda::Function"
+      TargetId: "Custom-RestrictLambdaVPC"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        securitygroupid:
+          StaticValue:
+            Values:
+              - !ImportValue securitygroupid
+        subnet1id:
+          StaticValue:
+            Values:
+              - !ImportValue subnet1
+        subnet2id:
+          StaticValue:
+            Values:
+              - !ImportValue subnet2
+        rolearn:
+          StaticValue:
+            Values:
+              - !ImportValue RestrictLambdaVPCRoleArn
+        functionname:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [PCI.RDS.2] RDS instances should prohibit public access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RDSNonPublicInstanceEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RDSNonPublicInstanceEnabled
+      Description: "[PCI.RDS.2] RDS instances should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::RDS::DBInstance"
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_INSTANCE_PUBLIC_ACCESS_CHECK
+  RDSNonPublicInstanceRemediation:
+    DependsOn: RDSNonPublicInstanceEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RDSNonPublicInstanceEnabled
+      ResourceType: "AWS::RDS::DBInstance"
+      TargetId: "Custom-ModifyRDSDBInstance"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        dbresourceid:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [PCI.Redshift.1] Amazon Redshift clusters should prohibit public access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RedshiftNonPublicClusterEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RedshiftNonPublicClusterEnabled
+      Description: "[PCI.Redshift.1] Amazon Redshift clusters should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::Redshift::Cluster"
+      Source:
+        Owner: AWS
+        SourceIdentifier: REDSHIFT_CLUSTER_PUBLIC_ACCESS_CHECK
+  RedshiftNonPublicClusterRemediation:
+    DependsOn: RedshiftNonPublicClusterEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RedshiftNonPublicClusterEnabled
+      ResourceType: "AWS::Redshift::Cluster"
+      TargetId: "Custom-ModifyRedshiftCluster"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        clusterId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [PCI.RDS.1] RDS snapshots should prohibit public access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RDSNonPublicSnapshotEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RDSNonPublicSnapshotEnabled
+      Description: "[PCI.RDS.1] RDS snapshots should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::RDS::DBSnapshot"
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_SNAPSHOTS_PUBLIC_PROHIBITED
+  RDSNonPublicSnapshotRemediation:
+    DependsOn: RDSNonPublicSnapshotEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RDSNonPublicSnapshotEnabled
+      ResourceType: "AWS::RDS::DBSnapshot"
+      TargetId: "Custom-ModifyRDSSnapshot"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        snapshotId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        snapshotType:
+          StaticValue:
+            Values:
+              - "AwsRdsDBSnapshot"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [PCI.EC2.1] Amazon EBS snapshots should not be publicly restorable
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  EBSPublicNonRestoreSnapshotEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: EBSPublicNonRestoreSnapshotEnabled
+      Description: "[PCI.EC2.1] Amazon EBS snapshots should not be publicly restorable"
+      Source:
+        Owner: AWS
+        SourceIdentifier: EBS_SNAPSHOT_PUBLIC_RESTORABLE_CHECK
+  EBSPublicNonRestoreSnapshotRemediation:
+    DependsOn: EBSPublicNonRestoreSnapshotEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: EBSPublicNonRestoreSnapshotEnabled
+      TargetId: "Custom-ModifySnapshot"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        snapshotId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60

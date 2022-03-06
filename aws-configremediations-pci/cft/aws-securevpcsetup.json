@@ -1,0 +1,262 @@
+# ---------------------------------------------------------------------------------------------------------------
+# CloudFormation Template 1 of 1 - 
+# Provisions a multiple VPC environment to provide an AWS environment with built-in security groups and networking
+# 
+# @author Kanishk Mahajan
+# ----------------------------------------------------------------------------------------------------------------
+
+
+{
+    "Resources" : {
+        "vpc1" : {
+            "Type" : "AWS::EC2::VPC",
+            "Properties" : { 
+                "CidrBlock" : "10.33.64.0/18",
+                "EnableDnsSupport" : true,
+                "EnableDnsHostnames" : true,
+                "InstanceTenancy" : "default",
+                "Tags" : [ {"Key" : "Name", "Value" : "vpc1"} ]
+            }
+        },
+        "vpc1snA1" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : { 
+                "VpcId" : {"Ref" : "vpc1"},
+                "Tags" : [ {"Key" : "Name", "Value" : "vpc1_sn_A1"} ],
+                "AvailabilityZone" : {
+                    "Fn::Select" : [
+                        "0",
+                        {
+                            "Fn::GetAZs" : ""
+                        }
+                    ]
+                },
+                "CidrBlock" : "10.33.64.0/20"
+            }
+        },
+        "vpc1snA2" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : { 
+                "VpcId" : {"Ref" : "vpc1"},
+                "Tags" : [ {"Key" : "Name", "Value" : "vpc1_sn_A2"} ],
+                "AvailabilityZone" : {
+                    "Fn::Select" : [
+                        "0",
+                        {
+                            "Fn::GetAZs" : ""
+                        }
+                    ]
+                },
+                "CidrBlock" : "10.33.80.0/20"
+            }
+        },
+        "vpc1snA3" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : { 
+                "VpcId" : {"Ref" : "vpc1"},
+                "Tags" : [ {"Key" : "Name", "Value" : "vpc1_sn_A3"} ], 
+                "AvailabilityZone" : {
+                    "Fn::Select" : [
+                        "1",
+                        {
+                            "Fn::GetAZs" : ""
+                        }
+                    ]
+                },
+                "CidrBlock" : "10.33.96.0/20"
+            }
+        },
+        "vpc1snA4" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : { 
+                "VpcId" : {"Ref" : "vpc1"},
+                "Tags" : [ {"Key" : "Name", "Value" : "vpc1_sn_A4"} ],
+                "AvailabilityZone" : {
+                    "Fn::Select" : [
+                        "1",
+                        {
+                            "Fn::GetAZs" : ""
+                        }
+                    ]
+                },
+                "CidrBlock" : "10.33.112.0/20"
+            }
+        },     
+        "igwvpc1" : {
+            "Type" : "AWS::EC2::InternetGateway",
+            "DependsOn" : "vpc1",
+            "Properties" : {
+               "Tags" : [ {"Key" : "Name", "Value" : "IGW-VPC1"} ]
+            }   
+        },
+        "igwvpc1attachment" : {
+            "DependsOn" : "igwvpc1",
+            "Type" : "AWS::EC2::VPCGatewayAttachment",
+            "Properties" : {
+               "InternetGatewayId" : {"Ref" : "igwvpc1"},
+               "VpcId" : {"Ref" : "vpc1"}
+            }
+        },
+        "rtpublic" : {
+            "Type" : "AWS::EC2::RouteTable",
+            "Properties" : {
+               "VpcId" : {"Ref" : "vpc1"},
+               "Tags" : [  {"Key" : "Name", "Value" : "RT-Public"} ]
+            }  
+        },
+        "rtpublicdefault" : {
+            "Type" : "AWS::EC2::Route",
+            "DependsOn" : "igwvpc1attachment",
+            "Properties" : {
+               "RouteTableId" : { "Ref" : "rtpublic" },
+               "DestinationCidrBlock" : "0.0.0.0/0",
+               "GatewayId" : { "Ref" : "igwvpc1" }
+            }
+        },
+        "rtpublicpubA" : {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "RouteTableId" : {"Ref" : "rtpublic" },
+                "SubnetId" : {"Ref" : "vpc1snA1" }
+              }
+        },  
+        "sgbastion" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupName" : "SG-BASTION",
+                "GroupDescription" : "SG-BASTION",
+                "SecurityGroupIngress" : [{
+                    "IpProtocol" : "tcp",
+                    "FromPort" : 22,
+                    "ToPort" : 22,
+                    "CidrIp" : "0.0.0.0/0"
+                }],
+                "Tags" :  [ {"Key" : "Name", "Value" : "SG-BASTION"} ],
+                "VpcId" : {"Ref" : "vpc1"}
+            }
+        },
+        "sginternal" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupName" : "SG-INTERNAL",
+                "GroupDescription" : "SG-INTERNAL",
+                "SecurityGroupIngress" : [{
+                    "IpProtocol" : "tcp",
+                    "FromPort" : 22,
+                    "ToPort" : 22,
+                    "SourceSecurityGroupId" : {"Ref" : "sgbastion"}
+                }],
+                "Tags" :  [ {"Key" : "Name", "Value" : "SG-INTERNAL"} ],
+                "VpcId" : {"Ref" : "vpc1"}
+            }
+        },
+        "sginternalselfref" : {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "sginternal"
+                },
+                "IpProtocol": -1,
+                "FromPort": -1,
+                "ToPort": -1,
+                "SourceSecurityGroupId": {
+                    "Ref": "sginternal"
+                }
+            }
+        },
+        "rtprivatea" : {
+            "Type" : "AWS::EC2::RouteTable",
+            "Properties" : {
+               "VpcId" : {"Ref" : "vpc1"},
+               "Tags" : [  {"Key" : "Name", "Value" : "RT-PrivateA"} ]
+            }  
+        },
+        "rtprivateb" : {
+            "Type" : "AWS::EC2::RouteTable",
+            "Properties" : {
+               "VpcId" : {"Ref" : "vpc1"},
+               "Tags" : [  {"Key" : "Name", "Value" : "RT-PrivateB"} ]
+            }  
+        },
+        "rtprivatec" : {
+            "Type" : "AWS::EC2::RouteTable",
+            "Properties" : {
+               "VpcId" : {"Ref" : "vpc1"},
+               "Tags" : [  {"Key" : "Name", "Value" : "RT-PrivateC"} ]
+            }  
+        },
+        "rtprivatea3" : {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "RouteTableId" : {"Ref" : "rtprivatea" },
+                "SubnetId" : {"Ref" : "vpc1snA3" }
+              }
+        },
+        "rtprivatea4" : {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "RouteTableId" : {"Ref" : "rtprivatea" },
+                "SubnetId" : {"Ref" : "vpc1snA4" }
+              }
+        }
+    },
+    "Outputs" : {
+        "vpc1id" : {
+            "Description" : "ID of VPC 1",
+            "Value" : {"Ref" : "vpc1"},
+            "Export" : {
+                "Name" : "vpc1id"
+            }
+        },
+        "vpc1sn1cidr" : {
+            "Description" : "CIDR of VPC 1 Subnet A1",
+            "Value" : "10.33.64.0/20",
+            "Export" : {
+                "Name" : "vpc1sn1cidr"
+            }
+        },
+        "subnetvpc1A1" : {
+            "Description" : "ID of Subnet A1 in VPC 1",
+            "Value" : {"Ref" : "vpc1snA1"},
+            "Export" : {
+                "Name" : "subnetvpc1A1"
+            }
+        },
+        "subnetvpc1A2" : {
+            "Description" : "ID of Subnet A2 in VPC 1",
+            "Value" : {"Ref" : "vpc1snA2"},
+            "Export" : {
+                "Name" : "subnetvpc1A2"
+            }
+        },
+        "subnetvpc1A3" : {
+            "Description" : "ID of Subnet A3 in VPC 1",
+            "Value" : {"Ref" : "vpc1snA3"},
+            "Export" : {
+                "Name" : "subnetvpc1A3"
+            }
+        },
+        "securitygroupid" : {
+            "Description" : "ID of Public Bastion SG",
+            "Value" : {"Ref" : "sgbastion"},
+            "Export" : {
+                "Name" : "securitygroupid"
+            }
+        },
+        "subnetvpc1A4" : {
+            "Description" : "ID of Subnet A4 in VPC 1",
+            "Value" : {"Ref" : "vpc1snA4"},
+            "Export" : {
+                "Name" : "subnetvpc1A4"
+            }
+        },
+        "routetablesubnetvpc1" : {
+            "Description" : "ID of RouteTable for VPC 1 A1 Subnet",
+            "Value" : {"Ref" : "rtpublic"},
+            "Export" : {
+                "Name" : "routetablesubnetvpc1"
+            }
+        }      
+    }
+
+}
