@@ -1,0 +1,984 @@
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  CloudFormation Template 2 of 2 - Real Time Automated Remediation for PCI DSS Findings based on Security Hub 
+#  
+#  Pre-req : Uses the AWS SSM Automation CloudFormation Template. 
+#  This template integrates AWS Security Hub custom actions with Custom AWS SSM Automation Remediation Documents
+# 
+# @author Kanishk Mahajan
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+Parameters:
+  EmailAddress:
+    Description: Email Address for notifications for PCI.CW.1
+    Type: String
+    Default:  admin@example.com
+
+Resources:
+
+# SNS topic for CloudWatch Alarm Notifications
+  AlarmNotificationTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: AlarmNotificationTopic
+      TopicName: AlarmNotificationTopic
+
+# Email Subscription for SNS topic
+  AlarmEmailSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      Protocol: email
+      Endpoint: !Ref EmailAddress
+      TopicArn: !Ref AlarmNotificationTopic
+
+# CloudTrail CloudWatch Log Group
+  CloudTrailLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub DefaultLogGroup-FSBP-${AWS::Region}
+      RetentionInDays: 180
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# S3.3 – S3 Buckets should prohibit public write access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  S3BucketPublicWriteProhibited:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: S3BucketPublicWriteProhibited
+      Description: >-
+        "S3.3 - S3 Buckets should prohibit public write access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_WRITE_PROHIBITED
+      MaximumExecutionFrequency: One_Hour
+  S3PublicWriteRemediation:
+    DependsOn: S3BucketPublicWriteProhibited
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3BucketPublicWriteProhibited
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-DisableS3BucketPublicReadWrite"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        S3BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [S3.1] S3 Block Public Access setting should be enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  S3BucketPublicReadProhibited:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: S3BucketPublicReadProhibited
+      Description: >-
+        "[S3.1] S3 Block Public Access setting should be enabled"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED
+      MaximumExecutionFrequency: One_Hour
+  S3PublicWriteRemediation:
+    DependsOn: S3BucketPublicReadProhibited
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3BucketPublicReadProhibited
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-DisableS3BucketPublicReadWrite"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        S3BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# S3.2 – S3 Buckets should prohibit public read access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  S3BucketPublicReadProhibited:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: S3BucketPublicReadProhibited
+      Description: >-
+        "S3.2 - S3 Buckets should prohibit public read access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED
+      MaximumExecutionFrequency: One_Hour
+  S3PublicWriteRemediation:
+    DependsOn: S3BucketPublicReadProhibited
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3BucketPublicReadProhibited
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-DisableS3BucketPublicReadWrite"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        S3BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [S3.4] S3 buckets should have server-side encryption enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  S3BucketServerSideEncryptionEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: S3BucketServerSideEncryptionEnabled
+      Description: "[S3.4] S3 buckets should have server-side encryption enabled"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+  S3BucketServerSideEncryptionEnabledRemediation:
+    DependsOn: S3BucketServerSideEncryptionEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3BucketServerSideEncryptionEnabled
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-EnableS3BucketEncryption"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        SSEAlgorithm:
+          StaticValue:
+            Values:
+              - "AES256"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [CloudTrail.1] CloudTrail should be enabled and configured with at least one multi-Region trail
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  CloudTrailEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloudtrail-enabled
+      Description: >-
+        CloudTrail.1 CloudTrail should be enabled and configured with at least one multi-Region trail
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailEnabledRemediation:
+    DependsOn: CloudTrailEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloudtrail-enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "AWS-EnableCloudTrail"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        S3BucketName:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-CISS3CloudTrailBucket
+        TrailName:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-CISCloudTrail
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [CloudTrail.2] CloudTrail should have encryption at-rest enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  CloudTrailEncryptionEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: CloudTrailEncryptionEnabled
+      Description: >-
+        CloudTrail.2 – CloudTrail should have encryption at-rest enabled
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CloudTrail::Trail"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_ENCRYPTION_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  CloudTrailEncryptionRemediation:
+    DependsOn: CloudTrailEncryptionEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: CloudTrailEncryptionEnabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "Custom-FSBP-CloudTrailEncryptionCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        CloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-CloudTrailLogGroupArn
+        CloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-CloudWatchRoleArn
+        KMSKeyArn:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-KMSKeyArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+ 
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# EC2.2 VPC default security group should prohibit inbound and outbound traffic
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RestrictDefaultSecurityGroup:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: RestrictDefaultSecurityGroup
+      Description: >-
+        EC2.2 VPC default security group should prohibit inbound and outbound traffic
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::EC2::SecurityGroup"
+      Source:
+        Owner: AWS
+        SourceIdentifier: VPC_DEFAULT_SECURITY_GROUP_CLOSED
+  RestrictDefaultSecurityGroupRemediation:
+    DependsOn: RestrictDefaultSecurityGroup
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RestrictDefaultSecurityGroup
+      ResourceType: "AWS::EC2::SecurityGroup"
+      TargetId: "Custom-FSBP-RestrictSecurityGroup"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        IpAddressToBlock:
+          StaticValue:
+            Values:
+              - '0.0.0.0/0'
+        groupId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CodeBuild.2 CodeBuild project environment variables should not contain clear text credentials
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  CodeBuildProjectEnvVariableCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: CodeBuildProjectEnvVariableCheck
+      Description: >-
+        CodeBuild.2 CodeBuild project environment variables should not contain clear text credentials
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::CodeBuild::Project"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CODEBUILD_PROJECT_ENVVAR_AWSCRED_CHECK
+  CodeBuildProjectEnvVariableCheckRemediation:
+    DependsOn: CodeBuildProjectEnvVariableCheck
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: CodeBuildProjectEnvVariableCheck
+      ResourceType: "AWS::CodeBuild::Project"
+      TargetId: "Custom-FSBP-CodeBuildUpdateProject"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        projectName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [EC2.3] Attached EBS volumes should be encrypted at-rest
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  EncryptEBSVolumeEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: EncryptEBSVolumeEnabled
+      Description: >-
+        EC2.3 Attached EBS volumes should be encrypted at-rest
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::EC2::Volume"
+      InputParameters:
+        kmsId: !Ref 'AWS::NoValue'
+      Source:
+        Owner: AWS
+        SourceIdentifier: ENCRYPTED_VOLUMES
+  EncryptEBSVolumeRemediation:
+    DependsOn: EncryptEBSVolumeEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: EncryptEBSVolumeEnabled
+      ResourceType: "AWS::EC2::Volume"
+      TargetId: "Custom-FSBP-EncryptEBSVolume"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        sourceregion:
+          StaticValue:
+            Values:
+              - !Ref 'AWS::Region'
+        kmskeyArn:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-KMSKeyArn
+        ebsvolumeId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [RDS.3] RDS DB instances should have encryption at-rest enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  EncryptRDSInstanceEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: EncryptRDSInstanceEnabled
+      Description: >-
+        RDS.3 RDS DB instances should have encryption at-rest enabled
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::RDS::DBInstance"
+      InputParameters:
+        kmsKeyId: !Ref 'AWS::NoValue'
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_STORAGE_ENCRYPTED
+  EncryptRDSInstanceRemediation:
+    DependsOn: EncryptRDSInstanceEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: EncryptRDSInstanceEnabled
+      ResourceType: "AWS::RDS::DBInstance"
+      TargetId: "Custom-FSBP-EncryptRDSDBInstance"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        kmskeyArn:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-KMSKeyArn
+        dbresourceid:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [Lambda.2] Lambda functions should use latest runtime
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  LatestRuntimeLambdaEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: LatestRuntimeLambdaEnabled
+      Description: "Lambda.2 Lambda functions should use latest runtime"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::Lambda::Function"
+      InputParameters:
+        runtime: "python3.8"
+      Source:
+        Owner: AWS
+        SourceIdentifier: LAMBDA_FUNCTION_SETTINGS_CHECK
+  LatestRuntimeLambdaRemediation:
+    DependsOn: LatestRuntimeLambdaEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: LatestRuntimeLambdaEnabled
+      ResourceType: "AWS::Lambda::Function"
+      TargetId: "Custom-FSBP-LatestRuntimeLambda"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        functionname:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [IAM.4] IAM root user access key should not exist
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  DeactivateRootIAMAccessKey:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: DeactivateRootIAMAccessKey
+      Description: >-
+        IAM.4 – Deactivate Root Account IAM Access Key
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_ROOT_ACCESS_KEY_CHECK
+  DeactivateRootIAMAccessKeyRemediation:
+    DependsOn: DeactivateRootIAMAccessKey
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: DeactivateRootIAMAccessKey
+      TargetId: "Custom-FSBP-DeactivateRootIAMAccessKeyCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        username:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [IAM.2] IAM users should not have IAM policies attached
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  IAMUserPolicyDetach:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: IAMUserPolicyDetach
+      Description: >-
+        IAM.2 – IAM users should not have IAM Policies attached
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_USER_NO_POLICIES_CHECK
+  IAMUserPolicyDetachRemediation:
+    DependsOn: IAMUserPolicyDetach
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: IAMUserPolicyDetach
+      TargetId: "Custom-FSBP-IAMUserPolicyDetachCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        userresourceid:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [IAM.3] IAM users' access keys should be rotated every 90 days or less
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  IAMKeyRotate90DaysEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: IAMKeyRotate90DaysEnabled
+      Description: >-
+        IAM.3 IAM users' access keys should be rotated every 90 days or less
+      InputParameters:
+        maxAccessKeyAge: 90
+      Source:
+        Owner: AWS
+        SourceIdentifier: ACCESS_KEYS_ROTATED
+  IAMKeyRotate90DaysRemediation:
+    DependsOn: IAMKeyRotate90DaysEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: IAMKeyRotate90DaysEnabled
+      TargetId: "Custom-FSBP-IAMKeyRotate90DaysCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [IAM.1] IAM policies should not allow full "*" administrative privileges
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  IAMFullAdminPolicyDetach:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: IAMFullAdminPolicyDetach
+      Description: >-
+        IAM.1 – Ensure IAM policies that allow full "*:*" administrative privileges are not created
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS
+  IAMFullAdminPolicyDetachRemediation:
+    DependsOn: IAMFullAdminPolicyDetach
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: IAMFullAdminPolicyDetach
+      TargetId: "Custom-FSBP-IAMFullAdminPolicyDetachCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        accountid:
+          StaticValue:
+            Values:
+              - !Ref 'AWS::AccountId'
+        policyresourceid:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [IAM.7] Password policies for IAM users should have strong configurations
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  IAMPasswordPolicyEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: IAMPasswordPolicyEnabled
+      Description: >-
+        IAM.7 Password policies for IAM users should have strong configurations
+      InputParameters:
+        RequireUppercaseCharacters: true
+        RequireLowercaseCharacters: true
+        RequireSymbols: true
+        RequireNumbers: true
+        MinimumPasswordLength: 14
+        PasswordReusePrevention: 24
+        MaxPasswordAge: 90
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_PASSWORD_POLICY
+      MaximumExecutionFrequency: One_Hour
+  IAMPasswordPolicyRemediation:
+    DependsOn: IAMPasswordPolicyEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: IAMPasswordPolicyEnabled
+      TargetId: "Custom-FSBP-IAMPasswordUpdateCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  PCI.S3.4 - Ensure server side encryption is enabled on S3 buckets
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  S3BucketServerSideEncryptionEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: S3BucketServerSideEncryptionEnabled
+      Description: " S3.4 - Ensure server side encryption is enabled on S3 buckets"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::S3::Bucket"
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+  S3BucketServerSideEncryptionEnabledRemediation:
+    DependsOn: S3BucketServerSideEncryptionEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: S3BucketServerSideEncryptionEnabled
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-EnableS3BucketEncryption"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        SSEAlgorithm:
+          StaticValue:
+            Values:
+              - "AES256"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [Lambda.1] Lambda functions should prohibit public access by other accounts
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RestrictPublicAccessLambdaEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RestrictPublicAccessLambdaEnabled
+      Description: "Lambda.1 Lambda functions should prohibit public access by other accounts"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::Lambda::Function"
+      Source:
+        Owner: AWS
+        SourceIdentifier: LAMBDA_FUNCTION_PUBLIC_ACCESS_PROHIBITED
+  RestrictPublicAccessLambdaRemediation:
+    DependsOn: RestrictPublicAccessLambdaEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RestrictPublicAccessLambdaEnabled
+      ResourceType: "AWS::Lambda::Function"
+      TargetId: "Custom-FSBP-RestrictPublicLambda"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        accountID:
+          StaticValue:
+            Values:
+              - !Ref 'AWS::AccountId'
+        functionname:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [GuardDuty.1] GuardDuty should be enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  GuardDutyEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: GuardDutyEnabled
+      Description: "GuardDuty.1 GuardDuty should be enabled"
+      Source:
+        Owner: AWS
+        SourceIdentifier: GUARDDUTY_ENABLED_CENTRALIZED
+  GuardDutyRemediation:
+    DependsOn: GuardDutyEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: GuardDutyEnabled
+      TargetId: "Custom-FSBP-EnableGuardDuty"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        findingpublishingfrequency:
+          StaticValue:
+            Values:
+              - "ONE_HOUR"
+        accountid:
+          ResourceValue:
+            Value: "RESOURCE_ID"      
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [RDS.2] RDS DB instances should prohibit public access, determined by the PubliclyAccessible configuration
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RDSNonPublicInstanceEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RDSNonPublicInstanceEnabled
+      Description: "[RDS.2] RDS instances should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::RDS::DBInstance"
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_INSTANCE_PUBLIC_ACCESS_CHECK
+  RDSNonPublicInstanceRemediation:
+    DependsOn: RDSNonPublicInstanceEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RDSNonPublicInstanceEnabled
+      ResourceType: "AWS::RDS::DBInstance"
+      TargetId: "Custom-FSBP-ModifyRDSDBInstance"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        dbresourceid:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [RDS.1] RDS snapshots should prohibit public access
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  RDSNonPublicSnapshotEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: RDSNonPublicSnapshotEnabled
+      Description: "RDS.1 RDS snapshots should prohibit public access"
+      Scope:
+        ComplianceResourceTypes:
+        - "AWS::RDS::DBSnapshot"
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_SNAPSHOTS_PUBLIC_PROHIBITED
+  RDSNonPublicSnapshotRemediation:
+    DependsOn: RDSNonPublicSnapshotEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: RDSNonPublicSnapshotEnabled
+      ResourceType: "AWS::RDS::DBSnapshot"
+      TargetId: "Custom-FSBP-ModifyRDSSnapshot"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        snapshotId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        snapshotType:
+          StaticValue:
+            Values:
+              - "AwsRdsDBSnapshot"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  [EC2.1] Amazon EBS snapshots should not be publicly restorable
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  EBSPublicNonRestoreSnapshotEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: EBSPublicNonRestoreSnapshotEnabled
+      Description: "[EC2.1] Amazon EBS snapshots should not be publicly restorable"
+      Source:
+        Owner: AWS
+        SourceIdentifier: EBS_SNAPSHOT_PUBLIC_RESTORABLE_CHECK
+  EBSPublicNonRestoreSnapshotRemediation:
+    DependsOn: EBSPublicNonRestoreSnapshotEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: EBSPublicNonRestoreSnapshotEnabled
+      TargetId: "Custom-FSBP-ModifySnapshot"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue FSBP-AutomationAssumeRoleArn
+        snapshotId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
