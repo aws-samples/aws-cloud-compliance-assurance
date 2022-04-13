@@ -23,7 +23,7 @@ $ aws register-delegated-administrator --service-principal config.amazonaws.com\
 --account-id [delegated account id]
 ```
 
-## Step 3 - Setup S3 Delivery bucket in the delegated admin account for Conformance Pack artifacts
+## Step 3 - Setup S3 Delivery bucket in the delegated administrator account for Conformance Pack artifacts
 
 For AWS Config to be able to store conformance pack artifacts, you will need to provide an Amazon S3 bucket in the **delegated administrator** account. This bucket name must start with the prefix **“awsconfigconforms”**. Each account in the organization must have access to this bucket. 
 
