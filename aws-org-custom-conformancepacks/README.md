@@ -12,6 +12,8 @@
 4. Demonstrates automated deployment of a custom AWS Config Conformance Pack with remediations in an AWS Organization. 
 
 Demonstrates deployment of a custom Config conformance pack with remediations for these PCI controls:
+
+```
 * [PCI.AutoScaling.1] Auto scaling groups associated with a load balancer should use health checks
 * [PCI.CloudTrail.3] CloudTrail log file validation should be enabled
 * [PCI.CloudTrail.4] CloudTrail trails should be integrated with CloudWatch Logs
@@ -28,6 +30,7 @@ Demonstrates deployment of a custom Config conformance pack with remediations fo
 * [PCI.Redshift.1] Amazon Redshift clusters should prohibit public access
 * [PCI.S3.1] S3 buckets should prohibit public write access
 * [PCI.S3.2] S3 buckets should prohibit public read access
+```
 
 
 ## 0 - Prerequsites
