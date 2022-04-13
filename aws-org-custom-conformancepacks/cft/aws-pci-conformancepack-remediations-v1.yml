@@ -1,0 +1,725 @@
+##################################################################################
+#
+#   Conformance Pack:
+#     Operational Best Practices for PCI DSS 3.2.1 wth remediations
+#
+#   @kmmahaj
+#
+#   This custom conformance pack with remediations helps verify and remediate compliance with PCI DSS 3.2.1 requirements.. 
+#
+##################################################################################
+
+Parameters:
+  AccessKeysRotatedParamMaxAccessKeyAge:
+    Default: '90'
+    Description: Maximum number of days without rotation. Default 90.
+    Type: String
+  AcmCertificateExpirationCheckParamDaysToExpiration:
+    Default: '90'
+    Description: Specify the number of days before the rule flags the ACM Certificate
+      as noncompliant.
+    Type: String
+  IamPasswordPolicyParamMaxPasswordAge:
+    Default: '90'
+    Description: Number of days before password expiration.
+    Type: String
+  IamPasswordPolicyParamMinimumPasswordLength:
+    Default: '7'
+    Description: Password minimum length.
+    Type: String
+  IamPasswordPolicyParamPasswordReusePrevention:
+    Default: '4'
+    Description: Number of passwords before allowing reuse.
+    Type: String
+  IamPasswordPolicyParamRequireLowercaseCharacters:
+    Default: 'TRUE'
+    Description: Require at least one lowercase character in password.
+    Type: String
+  IamPasswordPolicyParamRequireNumbers:
+    Default: 'TRUE'
+    Description: Require at least one number in password.
+    Type: String
+  IamPasswordPolicyParamRequireSymbols:
+    Default: 'TRUE'
+    Description: Require at least one symbol in password.
+    Type: String
+  IamPasswordPolicyParamRequireUppercaseCharacters:
+    Default: 'TRUE'
+    Description: Require at least one uppercase character in password.
+    Type: String
+  IamUserUnusedCredentialsCheckParamMaxCredentialUsageAge:
+    Default: '90'
+    Description: Maximum number of days a credential cannot be used. The default value
+      is 90 days.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort1:
+    Default: '20'
+    Description: Blocked TCP port number.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort2:
+    Default: '21'
+    Description: Blocked TCP port number.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort3:
+    Default: '3389'
+    Description: Blocked TCP port number.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort4:
+    Default: '3306'
+    Description: Blocked TCP port number.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort5:
+    Default: '4333'
+    Description: Blocked TCP port number.
+    Type: String
+  S3AccountLevelPublicAccessBlocksParamBlockPublicAcls:
+    Default: 'True'
+    Description: BlockPublicAcls is enforced or not, default True
+    Type: String
+  S3AccountLevelPublicAccessBlocksParamBlockPublicPolicy:
+    Default: 'True'
+    Description: BlockPublicPolicy is enforced or not, default True
+    Type: String
+  S3AccountLevelPublicAccessBlocksParamIgnorePublicAcls:
+    Default: 'True'
+    Description: IgnorePublicAcls is enforced or not, default True
+    Type: String
+  S3AccountLevelPublicAccessBlocksParamRestrictPublicBuckets:
+    Default: 'True'
+    Description: RestrictPublicBuckets is enforced or not, default True
+    Type: String
+Resources:
+  CmkBackingKeyRotationEnabled:
+    Controls:
+      - 3.6.4
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      Description: Checks that key rotation is enabled for each key and matches to
+        the key ID of the customer created customer master key (CMK). The rule is
+        compliant, if the key rotation is enabled for specific key object.
+      MaximumExecutionFrequency: TwentyFour_Hours
+      Scope: {}
+      Source:
+        Owner: AWS
+        SourceIdentifier: CMK_BACKING_KEY_ROTATION_ENABLED
+    Type: AWS::Config::ConfigRule
+  CMKBackingKeyRotationRemediation:
+    DependsOn: CmkBackingKeyRotationEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      ResourceType: "AWS::KMS::Key"
+      TargetId: "PCI-Org-Custom-CMKBackingKeyRotationCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        KMSKeyArn:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600  
+  CloudTrailEncryptionEnabled:
+    Controls:
+      - 10.5.1
+    Properties:
+      ConfigRuleName: cloud-trail-encryption-enabled
+      Description: Checks whether AWS CloudTrail is configured to use the server side
+        encryption (SSE) AWS Key Management Service (AWS KMS) customer master key
+        (CMK) encryption. The rule is compliant if the KmsKeyId is defined.
+      MaximumExecutionFrequency: TwentyFour_Hours
+      Scope: {}
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_ENCRYPTION_ENABLED
+    Type: AWS::Config::ConfigRule
+  CloudTrailLogFileValidationEnabled:
+    Controls:
+      - 10.5.2
+      - 10.5.5
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      Description: Checks whether AWS CloudTrail creates a signed digest file with
+        logs. AWS recommends that the file validation must be enabled on all trails.
+        The rule is noncompliant if the validation is not enabled.
+      MaximumExecutionFrequency: TwentyFour_Hours
+      Scope: {}
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_LOG_FILE_VALIDATION_ENABLED
+    Type: AWS::Config::ConfigRule
+  CloudTrailLogFileValidationRemediation:
+    DependsOn: CloudTrailLogFileValidationEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      ResourceType: "AWS::CloudTrail::Trail"
+      TargetId: "PCI-Org-Custom-LogFileValidationCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        CloudTrailLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue PCI-Org-CloudTrailLogGroupArn
+        CloudWatchRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue PCI-Org-CloudWatchRoleArn
+        TrailName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+  CloudwatchLogGroupEncrypted:
+    Controls:
+      - 10.5.1
+    Properties:
+      ConfigRuleName: cloudwatch-log-group-encrypted
+      Description: Checks whether a log group in Amazon CloudWatch Logs is encrypted.
+        The rule is NON_COMPLIANT if CloudWatch Logs has log group without encryption
+        enabled.
+      MaximumExecutionFrequency: TwentyFour_Hours
+      Scope: {}
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUDWATCH_LOG_GROUP_ENCRYPTED
+    Type: AWS::Config::ConfigRule
+  CodebuildProjectEnvvarAwscredCheck:
+    Controls:
+      - 8.2.1
+    Properties:
+      ConfigRuleName: codebuild-project-envvar-awscred-check
+      Description: Checks whether the project contains environment variables AWS_ACCESS_KEY_ID
+        and AWS_SECRET_ACCESS_KEY. The rule is NON_COMPLIANT when the project environment
+        variables contains plaintext credentials.
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::CodeBuild::Project
+      Source:
+        Owner: AWS
+        SourceIdentifier: CODEBUILD_PROJECT_ENVVAR_AWSCRED_CHECK
+    Type: AWS::Config::ConfigRule
+  CodeBuildProjectEnvVariableCheckRemediation:
+    DependsOn: CodebuildProjectEnvvarAwscredCheck
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: codebuild-project-envvar-awscred-check
+      ResourceType: "AWS::CodeBuild::Project"
+      TargetId: "PCI-Org-Custom-CodeBuildUpdateProject"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        projectName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+  Ec2SecurityGroupAttachedToEni:
+    Controls:
+      - '2.4'
+    Properties:
+      ConfigRuleName: ec2-security-group-attached-to-eni
+      Description: 'Checks that non-default security groups are attached to Amazon
+        Elastic Compute Cloud (EC2) instances or an elastic network interfaces (ENIs).
+        The rule returns NON_COMPLIANT if the security group is not associated with
+        an EC2 instance or an ENI. '
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::EC2::SecurityGroup
+      Source:
+        Owner: AWS
+        SourceIdentifier: EC2_SECURITY_GROUP_ATTACHED_TO_ENI
+    Type: AWS::Config::ConfigRule
+  RemoveUnusedEC2SecurityGroupsRemediation:
+    DependsOn: Ec2SecurityGroupAttachedToEni
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: ec2-security-group-attached-to-eni
+      ResourceType: "AWS::EC2::SecurityGroup"
+      TargetId: "PCI-Org-Custom-RemoveSecurityGroup"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        groupId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+  EipAttached:
+    Controls:
+      - '2.2'
+    Properties:
+      ConfigRuleName: eip-attached
+      Description: Checks whether all EIP addresses allocated to a VPC are attached
+        to EC2 instances or in-use ENIs.
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::EC2::EIP
+      Source:
+        Owner: AWS
+        SourceIdentifier: EIP_ATTACHED
+    Type: AWS::Config::ConfigRule
+  ReleaseElasticIPRemediation:
+    DependsOn: EipAttached
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: eip-attached
+      ResourceType: "AWS::EC2::EIP"
+      TargetId: "AWS-ReleaseElasticIP"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        AllocationId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+  IamPasswordPolicy:
+    Controls:
+      - 8.2.3
+      - 8.2.4
+      - 8.2.5
+    Properties:
+      ConfigRuleName: iam-password-policy
+      Description: Checks whether the account password policy for IAM users meets
+        the specified requirements.
+      InputParameters:
+        MaxPasswordAge:
+          Fn::If:
+            - iamPasswordPolicyParamMaxPasswordAge
+            - Ref: IamPasswordPolicyParamMaxPasswordAge
+            - Ref: AWS::NoValue
+        MinimumPasswordLength:
+          Fn::If:
+            - iamPasswordPolicyParamMinimumPasswordLength
+            - Ref: IamPasswordPolicyParamMinimumPasswordLength
+            - Ref: AWS::NoValue
+        PasswordReusePrevention:
+          Fn::If:
+            - iamPasswordPolicyParamPasswordReusePrevention
+            - Ref: IamPasswordPolicyParamPasswordReusePrevention
+            - Ref: AWS::NoValue
+        RequireLowercaseCharacters:
+          Fn::If:
+            - iamPasswordPolicyParamRequireLowercaseCharacters
+            - Ref: IamPasswordPolicyParamRequireLowercaseCharacters
+            - Ref: AWS::NoValue
+        RequireNumbers:
+          Fn::If:
+            - iamPasswordPolicyParamRequireNumbers
+            - Ref: IamPasswordPolicyParamRequireNumbers
+            - Ref: AWS::NoValue
+        RequireSymbols:
+          Fn::If:
+            - iamPasswordPolicyParamRequireSymbols
+            - Ref: IamPasswordPolicyParamRequireSymbols
+            - Ref: AWS::NoValue
+        RequireUppercaseCharacters:
+          Fn::If:
+            - iamPasswordPolicyParamRequireUppercaseCharacters
+            - Ref: IamPasswordPolicyParamRequireUppercaseCharacters
+            - Ref: AWS::NoValue
+      MaximumExecutionFrequency: TwentyFour_Hours
+      Scope: {}
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_PASSWORD_POLICY
+    Type: AWS::Config::ConfigRule
+  IAMPasswordPolicyRemediation:
+    DependsOn: IamPasswordPolicy
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: iam-password-policy
+      TargetId: "PCI-Org-Custom-IAMPasswordUpdateCF"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  LambdaFunctionPublicAccessProhibited:
+    Controls:
+      - 1.2.1
+      - '1.3'
+      - '7.2'
+    Properties:
+      ConfigRuleName: lambda-function-public-access-prohibited
+      Description: Checks whether the Lambda function policy prohibits public access.
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::Lambda::Function
+      Source:
+        Owner: AWS
+        SourceIdentifier: LAMBDA_FUNCTION_PUBLIC_ACCESS_PROHIBITED
+    Type: AWS::Config::ConfigRule
+  S3AccountLevelPublicAccessBlocks:
+    Controls:
+      - '1.3'
+      - '2.2'
+    Properties:
+      ConfigRuleName: s3-account-level-public-access-blocks
+      Description: Checks whether the required public access block settings are configured
+        from account level. The rule is NON_COMPLIANT when the public access block
+        settings are not configured from account level.
+      InputParameters:
+        BlockPublicAcls:
+          Fn::If:
+            - s3AccountLevelPublicAccessBlocksParamBlockPublicAcls
+            - Ref: S3AccountLevelPublicAccessBlocksParamBlockPublicAcls
+            - Ref: AWS::NoValue
+        BlockPublicPolicy:
+          Fn::If:
+            - s3AccountLevelPublicAccessBlocksParamBlockPublicPolicy
+            - Ref: S3AccountLevelPublicAccessBlocksParamBlockPublicPolicy
+            - Ref: AWS::NoValue
+        IgnorePublicAcls:
+          Fn::If:
+            - s3AccountLevelPublicAccessBlocksParamIgnorePublicAcls
+            - Ref: S3AccountLevelPublicAccessBlocksParamIgnorePublicAcls
+            - Ref: AWS::NoValue
+        RestrictPublicBuckets:
+          Fn::If:
+            - s3AccountLevelPublicAccessBlocksParamRestrictPublicBuckets
+            - Ref: S3AccountLevelPublicAccessBlocksParamRestrictPublicBuckets
+            - Ref: AWS::NoValue
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::S3::AccountPublicAccessBlock
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_ACCOUNT_LEVEL_PUBLIC_ACCESS_BLOCKS
+    Type: AWS::Config::ConfigRule
+  S3BucketPublicReadProhibited:
+    Controls:
+      - 1.2.1
+      - '1.3'
+      - '7.2'
+    Properties:
+      ConfigRuleName: s3-bucket-public-read-prohibited
+      Description: Checks that your Amazon S3 buckets do not allow public read access.
+        The rule checks the Block Public Access settings, the bucket policy, and the
+        bucket access control list (ACL).
+      MaximumExecutionFrequency: TwentyFour_Hours
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::S3::Bucket
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED
+    Type: AWS::Config::ConfigRule
+  S3PublicReadRemediation:
+    DependsOn: S3BucketPublicReadProhibited
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: s3-bucket-public-read-prohibited
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-DisableS3BucketPublicReadWrite"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        S3BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  S3BucketPublicWriteProhibited:
+    Controls:
+      - 1.2.1
+      - '1.3'
+      - '7.2'
+    Properties:
+      ConfigRuleName: s3-bucket-public-write-prohibited
+      Description: Checks that your Amazon S3 buckets do not allow public write access.
+        The rule checks the Block Public Access settings, the bucket policy, and the
+        bucket access control list (ACL).
+      MaximumExecutionFrequency: TwentyFour_Hours
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::S3::Bucket
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_WRITE_PROHIBITED
+    Type: AWS::Config::ConfigRule
+  S3PublicWriteRemediation:
+    DependsOn: S3BucketPublicWriteProhibited
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: s3-bucket-public-write-prohibited
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-DisableS3BucketPublicReadWrite"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        S3BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  S3BucketServerSideEncryptionEnabled:
+    Controls:
+      - '3.4'
+    Properties:
+      ConfigRuleName: s3-bucket-server-side-encryption-enabled
+      Description: Checks that your Amazon S3 bucket either has S3 default encryption
+        enabled or that the S3 bucket policy explicitly denies put-object requests
+        without server side encryption.
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::S3::Bucket
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+    Type: AWS::Config::ConfigRule
+  S3BucketServerSideEncryptionEnabledRemediation:
+    DependsOn: S3BucketServerSideEncryptionEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: s3-bucket-server-side-encryption-enabled
+      ResourceType: "AWS::S3::Bucket"
+      TargetId: "AWS-EnableS3BucketEncryption"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        BucketName:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+        SSEAlgorithm:
+          StaticValue:
+            Values:
+              - "AES256"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+  S3BucketVersioningEnabled:
+    Controls:
+      - 10.5.3
+    Properties:
+      ConfigRuleName: s3-bucket-versioning-enabled
+      Description: Checks whether versioning is enabled for your S3 buckets.
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::S3::Bucket
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_VERSIONING_ENABLED
+    Type: AWS::Config::ConfigRule
+  VpcDefaultSecurityGroupClosed:
+    Controls:
+      - '1.2'
+      - '1.3'
+      - '2.1'
+    Properties:
+      ConfigRuleName: vpc-default-security-group-closed
+      Description: Checks that the default security group of any Amazon Virtual Private
+        Cloud (VPC) does not allow inbound or outbound traffic. The rule is non-compliant
+        if the default security group has one or more inbound or outbound traffic.
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::EC2::SecurityGroup
+      Source:
+        Owner: AWS
+        SourceIdentifier: VPC_DEFAULT_SECURITY_GROUP_CLOSED
+    Type: AWS::Config::ConfigRule
+  RestrictDefaultSecurityGroupRemediation:
+    DependsOn: VpcDefaultSecurityGroupClosed
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: vpc-default-security-group-closed
+      ResourceType: "AWS::EC2::SecurityGroup"
+      TargetId: "PCI-Org-Custom-RestrictSecurityGroup"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+        IpAddressToBlock:
+          StaticValue:
+            Values:
+              - '0.0.0.0/0'
+        groupId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 10
+      RetryAttemptSeconds: 600
+Conditions:
+  accessKeysRotatedParamMaxAccessKeyAge:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: AccessKeysRotatedParamMaxAccessKeyAge
+  acmCertificateExpirationCheckParamDaysToExpiration:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: AcmCertificateExpirationCheckParamDaysToExpiration
+  iamPasswordPolicyParamMaxPasswordAge:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamPasswordPolicyParamMaxPasswordAge
+  iamPasswordPolicyParamMinimumPasswordLength:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamPasswordPolicyParamMinimumPasswordLength
+  iamPasswordPolicyParamPasswordReusePrevention:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamPasswordPolicyParamPasswordReusePrevention
+  iamPasswordPolicyParamRequireLowercaseCharacters:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamPasswordPolicyParamRequireLowercaseCharacters
+  iamPasswordPolicyParamRequireNumbers:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamPasswordPolicyParamRequireNumbers
+  iamPasswordPolicyParamRequireSymbols:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamPasswordPolicyParamRequireSymbols
+  iamPasswordPolicyParamRequireUppercaseCharacters:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamPasswordPolicyParamRequireUppercaseCharacters
+  iamUserUnusedCredentialsCheckParamMaxCredentialUsageAge:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamUserUnusedCredentialsCheckParamMaxCredentialUsageAge
+  restrictedIncomingTrafficParamBlockedPort1:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort1
+  restrictedIncomingTrafficParamBlockedPort2:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort2
+  restrictedIncomingTrafficParamBlockedPort3:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort3
+  restrictedIncomingTrafficParamBlockedPort4:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort4
+  restrictedIncomingTrafficParamBlockedPort5:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort5
+  s3AccountLevelPublicAccessBlocksParamBlockPublicAcls:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: S3AccountLevelPublicAccessBlocksParamBlockPublicAcls
+  s3AccountLevelPublicAccessBlocksParamBlockPublicPolicy:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: S3AccountLevelPublicAccessBlocksParamBlockPublicPolicy
+  s3AccountLevelPublicAccessBlocksParamIgnorePublicAcls:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: S3AccountLevelPublicAccessBlocksParamIgnorePublicAcls
+  s3AccountLevelPublicAccessBlocksParamRestrictPublicBuckets:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: S3AccountLevelPublicAccessBlocksParamRestrictPublicBuckets

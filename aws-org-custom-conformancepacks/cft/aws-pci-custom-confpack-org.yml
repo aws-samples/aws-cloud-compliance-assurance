@@ -1,0 +1,36 @@
+################################################################################
+#
+#  Provisions Org Custom Conformance Packs
+# 
+# @kmmahaj
+#
+# License:
+# This code is made available under the MIT-0 license. See the LICENSE file.
+################################################################################
+
+Parameters:
+
+  DeliveryS3Bucket:
+    Description: The name of the Amazon S3 bucket where AWS Config stores conformance pack templates.
+    Type: String
+    Default: 'awsconfigconforms-orgbucket'
+
+  OrganizationConformancePackName:
+    Description: Name of the custom config conformance pack
+    Type: String
+    Default: 'aws-pcicustomconfpack-remediations-org'
+
+  TemplateS3Uri:
+    Description: Location of S3 file containing the conformance pack template body. Points to the conformance pack template
+    Type: String
+    Default: 's3://s3-pci-confpack-org/aws-pci-conformancepack-remediations-v1.yml'
+
+Resources:
+
+  OrganizationConformancePack:
+    Type: 'AWS::Config::OrganizationConformancePack'
+    Properties: 
+      OrganizationConformancePackName: !Ref OrganizationConformancePackName
+      DeliveryS3Bucket: !Ref DeliveryS3Bucket
+      TemplateS3Uri: !Ref TemplateS3Uri
+    
