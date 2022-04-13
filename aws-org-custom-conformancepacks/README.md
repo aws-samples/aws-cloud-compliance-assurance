@@ -34,7 +34,7 @@ Demonstrates deployment of a custom Config conformance pack with remediations fo
 1. Complete the setup in [aws-org-enable-cca](https://github.com/aws-samples/aws-cloud-compliance-assurance/tree/main/aws-enable-config)
 
 
-## 1 - Deploy custom Config Conformance Pack
+## 1 - Deploy custom Config Conformance Pack in an AWS Organization
 
 1. In your **delegated administrator** account, create an S3 bucket. Upload the [**aws-pci-conformancepack-v1.yml**](https://github.com/aws-samples/aws-cloud-compliance-assurance/blob/main/aws-org-custom-conformancepacks/cft/aws-pci-conformancepack-v1.yml) custom conformance pack template that you want to deploy in your AWS Organization. You will use the S3 URI that contains this template as the TemplateS3Uri parameter in the next step.
 2. Launch the [**aws-pci-customconfpack-org.yml**](https://github.com/aws-samples/aws-cloud-compliance-assurance/blob/main/aws-org-custom-conformancepacks/cft/aws-pci-custom-confpack-org.yml) template from your **delegated administrator** account. This template automates org wide deployment of custom conformance packs. Provide the following parameters:
