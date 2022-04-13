@@ -6,10 +6,10 @@
 
 ## Overview
 
-1. Demonstrates automated deployment of a custom AWS Config Conformance Pack to an AWS Organization. 
-2. Demonstrates automated deployment of AWS Systems Manager remediation runbooks to an AWS Organization. 
+1. Demonstrates automated deployment of a custom AWS Config Conformance Pack in an AWS Organization. 
+2. Demonstrates automated deployment of AWS Systems Manager remediation runbooks in an AWS Organization. 
 3. Demonstrates adding SSM remediations to a custom AWS Config Conformance Pack
-4. Demonstrates automated deployment of a custom AWS Config Conformance Pack with remediations to an AWS Organization. 
+4. Demonstrates automated deployment of a custom AWS Config Conformance Pack with remediations in an AWS Organization. 
 
 Demonstrates deployment of a custom Config conformance pack with remediations for these PCI controls:
 * [PCI.AutoScaling.1] Auto scaling groups associated with a load balancer should use health checks
