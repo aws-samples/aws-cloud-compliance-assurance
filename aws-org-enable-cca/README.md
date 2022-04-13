@@ -10,7 +10,7 @@ Demonstrates steps required to operationalize configuration compliance in AWS ac
 
 ## Step 1 - Enable Config in an AWS Organization 
 
-**Option 1 - Use CloudFormation Stacksets** - In the CloudFormation console, choose StackSets. On the Create StackSets page, select the option to 'Use a sample template' and select the 'Enable AWS Config' template. Since you are using AWS Organizations [use service-managed permissions to deploy this template as a stackset]((https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-getting-started-create.html#stacksets-orgs-associate-stackset-with-org).)
+**Option 1 - Use CloudFormation Stacksets** - In the CloudFormation console, choose StackSets. On the Create StackSets page, select the option to 'Use a sample template' and select the 'Enable AWS Config' template. Since you are using AWS Organizations [use service-managed permissions to deploy this template as a stackset](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-getting-started-create.html#stacksets-orgs-associate-stackset-with-org)
 
 **Option 2 - Use Systems Manager Quick Setup** - With [Quick Setup](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-quick-setup.html), a capability of AWS Systems Manager, you can quickly create a configuration recorder powered by AWS Config across your organization. Follow the [steps outlined in SSM Quick Setup](https://docs.aws.amazon.com/systems-manager/latest/userguide/quick-setup-config.html) to set up AWS Config recording with AWS Systems Manager Quick Setup in an AWS Organization
 
