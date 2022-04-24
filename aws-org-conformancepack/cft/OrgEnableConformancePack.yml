@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Deploy AWS Config Conformance Pack in an AWS Organization
+
+Parameters:
+  
+  OrganizationConformancePackName:
+    Type: String
+    Default: 'PCIDSSConformancePack'
+    Description: Name of the Conformance Pack to be deployed in an AWS Organization
+
+  TemplateS3Uri:
+    Type: String
+    Default: 's3://bucketname/prefix'
+    Description: s3 template uri that hosts the conformance pack template
+
+
+Resources:
+  EnableOrganizationConfigRule:
+      Type: AWS::Config::OrganizationConformancePack
+      Properties:
+          OrganizationConformancePackName: !Ref OrganizationConformancePackName
+          TemplateS3Uri: !Ref TemplateS3Uri
+
+
+
+
