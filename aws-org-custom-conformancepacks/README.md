@@ -34,7 +34,7 @@ Demonstrates deployment of a custom Config conformance pack with remediations fo
 
 
 ## 0 - Prerequsites
-1. Complete the setup in [aws-org-enable-cca](https://github.com/aws-samples/aws-cloud-compliance-assurance/tree/main/aws-enable-config)
+1. Complete the setup in [aws-org-enable-cca](https://github.com/aws-samples/aws-cloud-compliance-assurance/tree/main/aws-org-enable-cca)
 
 
 ## 1 - Deploy custom Config Conformance Pack in an AWS Organization
