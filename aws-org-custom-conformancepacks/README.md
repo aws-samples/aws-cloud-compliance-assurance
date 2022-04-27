@@ -1,15 +1,16 @@
 <p align="center">
 </p>
 
-# Deploy custom AWS Config Conformance Packs in an AWS Organization
+# Automate Cloud Foundations for Compliance in AWS
+
 
 
 ## Overview
 
-1. Demonstrates automated deployment of a custom AWS Config Conformance Pack in an AWS Organization. 
-2. Demonstrates automated deployment of AWS Systems Manager remediation runbooks in an AWS Organization. 
-3. Demonstrates adding SSM remediations to a custom AWS Config Conformance Pack
-4. Demonstrates automated deployment of a custom AWS Config Conformance Pack with remediations in an AWS Organization. 
+1. Automated deployment of a custom AWS Config Conformance Pack in an AWS Organization. 
+2. Automated deployment of AWS Systems Manager remediation runbooks in an AWS Organization. 
+3. Add code for SSM remediations to a custom AWS Config Conformance Pack
+4. Automated deployment of a custom AWS Config Conformance Pack with remediations in an AWS Organization. 
 
 Demonstrates deployment of a custom Config conformance pack with remediations for these PCI controls:
 
