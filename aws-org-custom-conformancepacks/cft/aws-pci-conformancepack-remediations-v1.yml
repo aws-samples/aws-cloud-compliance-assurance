@@ -241,46 +241,6 @@ Resources:
       Automatic: True
       MaximumAutomaticAttempts: 10
       RetryAttemptSeconds: 600
-  Ec2SecurityGroupAttachedToEni:
-    Controls:
-      - '2.4'
-    Properties:
-      ConfigRuleName: ec2-security-group-attached-to-eni
-      Description: 'Checks that non-default security groups are attached to Amazon
-        Elastic Compute Cloud (EC2) instances or an elastic network interfaces (ENIs).
-        The rule returns NON_COMPLIANT if the security group is not associated with
-        an EC2 instance or an ENI. '
-      Scope:
-        ComplianceResourceTypes:
-          - AWS::EC2::SecurityGroup
-      Source:
-        Owner: AWS
-        SourceIdentifier: EC2_SECURITY_GROUP_ATTACHED_TO_ENI
-    Type: AWS::Config::ConfigRule
-  RemoveUnusedEC2SecurityGroupsRemediation:
-    DependsOn: Ec2SecurityGroupAttachedToEni
-    Type: 'AWS::Config::RemediationConfiguration'
-    Properties:
-      ConfigRuleName: ec2-security-group-attached-to-eni
-      ResourceType: "AWS::EC2::SecurityGroup"
-      TargetId: "PCI-Org-Custom-RemoveSecurityGroup"
-      TargetType: "SSM_DOCUMENT"
-      TargetVersion: "1"
-      Parameters:
-        AutomationAssumeRole:
-          StaticValue:
-            Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
-        groupId:
-          ResourceValue:
-            Value: "RESOURCE_ID"
-      ExecutionControls:
-        SsmControls:
-          ConcurrentExecutionRatePercentage: 10
-          ErrorPercentage: 10
-      Automatic: True
-      MaximumAutomaticAttempts: 10
-      RetryAttemptSeconds: 600
   EipAttached:
     Controls:
       - '2.2'
