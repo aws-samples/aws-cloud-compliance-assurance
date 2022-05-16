@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------------------------------
 
 AWSTemplateFormatVersion: 2010-09-09
-Description: CIS AWS Foundations Benchmark Metric Alarms
+Description: CIS AWS Foundations Benchmark Metric Alarms (qs-1t26ldp3k)
 
 Parameters:
   EmailAddress:
