@@ -10,7 +10,7 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: >-
   AWS CloudFormation template to create custom Audit Manager assessments. You will be
-  billed for the AWS resources used if you create a stack from this template.
+  billed for the AWS resources used if you create a stack from this template.(qs-1t26ldopg)
 Parameters:
   SourceBucket:
     Description: S3 Bucket that contains the Custom Audit Manager Framework Lambda 
