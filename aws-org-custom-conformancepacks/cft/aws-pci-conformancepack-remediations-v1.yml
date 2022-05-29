@@ -116,7 +116,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
         KMSKeyArn:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -172,7 +172,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
         CloudTrailLogGroupArn:
           StaticValue:
             Values:
@@ -230,7 +230,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
         projectName:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -268,7 +268,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
         AllocationId:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -342,7 +342,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
       ExecutionControls:
         SsmControls:
           ConcurrentExecutionRatePercentage: 10
@@ -433,7 +433,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
         S3BucketName:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -475,7 +475,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
         S3BucketName:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -514,7 +514,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
         BucketName:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -572,7 +572,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
         IpAddressToBlock:
           StaticValue:
             Values:
