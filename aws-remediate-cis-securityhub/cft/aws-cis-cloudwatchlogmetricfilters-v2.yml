@@ -17,6 +17,11 @@ Parameters:
     Type: String
     Default:  admin@example.com
 
+  TopicName:
+    Description: SNS topic name
+    Type: String
+    Default:  cissnstopic
+
   CloudTrailLogGroup:
     Description: Name of the CloudWatch Log group for CloudTrail
     Type: String
@@ -32,7 +37,7 @@ Resources:
     Type: 'AWS::SNS::Topic'
     Properties:
       DisplayName: AlarmNotificationTopic
-      TopicName: AlarmNotificationTopic
+      TopicName: !Sub ${TopicName}-${AWS::AccountId}-${AWS::Region}
 
 # Email Subscription for SNS topic
   AlarmEmailSubscription:
@@ -82,9 +87,9 @@ Resources:
   NoMfaConsoleLoginsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: CIS-Console Signin Without MFA
+      AlarmName: CISv2-Console Signin Without MFA
       AlarmDescription: Alarm if there is a Management Console sign-in without MFA
-      MetricName: ConsoleSigninWithoutMFA
+      MetricName: CISv2ConsoleSigninWithoutMFA
       Namespace: LogMetrics
       Statistic: Sum
       Period: 300
@@ -106,7 +111,7 @@ Resources:
       MetricTransformations:
       - MetricValue: '1'
         MetricNamespace: LogMetrics
-        MetricName: ConsoleSigninWithoutMFA
+        MetricName: CISv2ConsoleSigninWithoutMFA
 
 # ------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 1.1   Avoid the use of the "root" account 
@@ -117,9 +122,9 @@ Resources:
     DependsOn:
     - NoMfaConsoleLoginsAlarm
     Properties:
-      AlarmName: CIS-Root Activity
+      AlarmName: CISv2-Root Activity
       AlarmDescription: Alarm if a 'root' user uses the account
-      MetricName: RootUserEventCount
+      MetricName: CISv2RootUserEventCount
       Namespace: LogMetrics
       Statistic: Sum
       Period: 300
@@ -142,7 +147,7 @@ Resources:
       MetricTransformations:
       - MetricValue: '1'
         MetricNamespace: LogMetrics
-        MetricName: RootUserEventCount
+        MetricName: CISv2RootUserEventCount
 
 # --------------------------------------------------------------------------------------------------------------------------------------------
 # CIS AWS Foundations Benchmark - 3.4 Ensure a log metric filter and alarm exist for IAM policy changes 
