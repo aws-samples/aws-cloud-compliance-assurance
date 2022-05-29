@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Enable AWS Config Aggregator and Recorder for an Organization 
+Description: Enable AWS Config Aggregator and Recorder for an Organization (qs-1t26ldos5)
 
 Parameters:
   GlobalResourceTypesRegion:

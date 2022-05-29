@@ -8,8 +8,9 @@
 
 # @kmmahaj
 # ---------------------------------------------------------------------------------------------------
-
-
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation Template 1 of 2 - Provisions Custom AWS Systems Manager Automation Documents
+ These SSM Automations are used for Remediations with Custom AWS Config Conformance Packs. (qs-1t26ldp0q)
 
 Resources:
 

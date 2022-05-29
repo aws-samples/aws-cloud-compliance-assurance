@@ -11,7 +11,8 @@
 #
 # @kmmahaj
 # ---------------------------------------------------------------------------------------------------
-
+AWSTemplateFormatVersion: 2010-09-09
+Description: REINFORCE Service Catalog remediations(qs-1t26ldp4t)
 
 Parameters:
   S3StagingBucketURL:

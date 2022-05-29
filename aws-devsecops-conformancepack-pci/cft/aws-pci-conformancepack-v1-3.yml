@@ -7,6 +7,8 @@
 # License:
 # This code is made available under the MIT-0 license. See the LICENSE file.
 ################################################################################
+AWSTemplateFormatVersion: '2010-09-09'
+Description: PCI Conformance Pack with Remediations - RDS,Redshift,S3,IAM (qs-1t26ldouo)
 
 Resources:
 

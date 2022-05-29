@@ -7,7 +7,9 @@
 
 # @kmmahaj
 # ---------------------------------------------------------------------------------------------------
-
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provisions Custom AWS Systems Manager Automation Documents
+ These SSM Automations are used for Remediations with Custom AWS Config Conformance Packs for PCI (qs-1t26ldp2o)
 
 
 # Outputs here are used with ImportValue in the Custom PCI Conformance Packs
