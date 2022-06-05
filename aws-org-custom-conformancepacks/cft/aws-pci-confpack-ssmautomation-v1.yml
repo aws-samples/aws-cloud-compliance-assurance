@@ -145,7 +145,6 @@ Resources:
             - logs:PutLogEvents
             - logs:DescribeLogGroups
             - logs:DescribeLogStreams
-            - iam:PassRole
             Resource: '*'
           - Effect: Allow
             Action:
