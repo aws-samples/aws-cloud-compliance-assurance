@@ -161,7 +161,7 @@ Resources:
           Action:
           - sts:AssumeRole
 
-# CIS KMS CMK
+# PCI KMS CMK
   KmsKeyId:
     Type: 'AWS::KMS::Key'
     Properties:
@@ -170,6 +170,7 @@ Resources:
       KeyUsage: ENCRYPT_DECRYPT
       KeyPolicy:
         Version: '2012-10-17'
+        Id: 'PCI-KMS'
         Statement:
           - Sid: Enable IAM User Permissions
             Effect: Allow
