@@ -7,8 +7,6 @@
 # License:
 # This code is made available under the MIT-0 license. See the LICENSE file.
 ################################################################################
-AWSTemplateFormatVersion: 2010-09-09
-Description: Provisions Org Custom Conformance Packs(qs-1t26ldp2c)
 
 Parameters:
 
@@ -34,5 +32,16 @@ Resources:
     Properties: 
       OrganizationConformancePackName: !Ref OrganizationConformancePackName
       DeliveryS3Bucket: !Ref DeliveryS3Bucket
+      ExcludedAccounts:
+        - "798653331051"
+        - "652691327122"
+        - "227214716926"
+        - "018299706242"
+        - "525354019754"
+        - "602116679243"
+        - "187355837323"
+        - "341476298946"
+        - "221809298128"
+        - "388407216922"
       TemplateS3Uri: !Ref TemplateS3Uri
     

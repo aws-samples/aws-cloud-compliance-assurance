@@ -7,9 +7,7 @@
 
 # @kmmahaj
 # ---------------------------------------------------------------------------------------------------
-AWSTemplateFormatVersion: 2010-09-09
-Description: Provisions Custom AWS Systems Manager Automation Documents
- These SSM Automations are used for Remediations with Custom AWS Config Conformance Packs for PCI (qs-1t26ldp2o)
+
 
 
 # Outputs here are used with ImportValue in the Custom PCI Conformance Packs
@@ -96,19 +94,6 @@ Resources:
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Sub PCI-Org-automationassumerole-${AWS::Region}
-      Policies:
-      - PolicyName: PCISSMRemediationPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - ec2:ReleaseAddress
-            - ec2:DescribeSecurityGroups
-            - ec2:DeleteSecurityGroup
-            - ec2:RevokeSecurityGroupEgress
-            - ec2:RevokeSecurityGroupIngress
-            Resource: '*'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -121,6 +106,9 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
 
 
 # Cloud Watch Role
@@ -145,6 +133,8 @@ Resources:
             - logs:PutLogEvents
             - logs:DescribeLogGroups
             - logs:DescribeLogStreams
+            - iam:PassRole
+            - ec2:*
             Resource: '*'
           - Effect: Allow
             Action:
@@ -161,7 +151,7 @@ Resources:
           Action:
           - sts:AssumeRole
 
-# PCI KMS CMK
+# CIS KMS CMK
   KmsKeyId:
     Type: 'AWS::KMS::Key'
     Properties:
@@ -170,7 +160,6 @@ Resources:
       KeyUsage: ENCRYPT_DECRYPT
       KeyPolicy:
         Version: '2012-10-17'
-        Id: 'PCI-KMS'
         Statement:
           - Sid: Enable IAM User Permissions
             Effect: Allow
@@ -181,10 +170,7 @@ Resources:
                   - - 'arn:aws:iam::'
                     - Ref: 'AWS::AccountId'
                     - ':root'
-            Action: 
-            - kms:DescribeKey
-            - kms:Encrypt
-            - kms:Decrypt
+            Action: 'kms:*'
             Resource: '*'
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------

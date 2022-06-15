@@ -8,17 +8,24 @@
 #   This custom conformance pack with remediations helps verify and remediate compliance with PCI DSS 3.2.1 requirements.. 
 #
 ##################################################################################
-AWSTemplateFormatVersion: 2010-09-09
-Description: Operational Best Practices for PCI DSS 3.2.1 wth remediations (qs-1t26ldp3d)
 
 Parameters:
-  IamPasswordPolicyParamMinimumPasswordLength:
-    Default: '7'
-    Description: Password minimum length.
+  AccessKeysRotatedParamMaxAccessKeyAge:
+    Default: '90'
+    Description: Maximum number of days without rotation. Default 90.
+    Type: String
+  AcmCertificateExpirationCheckParamDaysToExpiration:
+    Default: '90'
+    Description: Specify the number of days before the rule flags the ACM Certificate
+      as noncompliant.
     Type: String
   IamPasswordPolicyParamMaxPasswordAge:
     Default: '90'
     Description: Number of days before password expiration.
+    Type: String
+  IamPasswordPolicyParamMinimumPasswordLength:
+    Default: '7'
+    Description: Password minimum length.
     Type: String
   IamPasswordPolicyParamPasswordReusePrevention:
     Default: '4'
@@ -40,6 +47,31 @@ Parameters:
     Default: 'TRUE'
     Description: Require at least one uppercase character in password.
     Type: String
+  IamUserUnusedCredentialsCheckParamMaxCredentialUsageAge:
+    Default: '90'
+    Description: Maximum number of days a credential cannot be used. The default value
+      is 90 days.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort1:
+    Default: '20'
+    Description: Blocked TCP port number.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort2:
+    Default: '21'
+    Description: Blocked TCP port number.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort3:
+    Default: '3389'
+    Description: Blocked TCP port number.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort4:
+    Default: '3306'
+    Description: Blocked TCP port number.
+    Type: String
+  RestrictedIncomingTrafficParamBlockedPort5:
+    Default: '4333'
+    Description: Blocked TCP port number.
+    Type: String
   S3AccountLevelPublicAccessBlocksParamBlockPublicAcls:
     Default: 'True'
     Description: BlockPublicAcls is enforced or not, default True
@@ -58,6 +90,8 @@ Parameters:
     Type: String
 Resources:
   CmkBackingKeyRotationEnabled:
+    Controls:
+      - 3.6.4
     Properties:
       ConfigRuleName: cmk-backing-key-rotation-enabled
       Description: Checks that key rotation is enabled for each key and matches to
@@ -82,7 +116,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
         KMSKeyArn:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -94,6 +128,8 @@ Resources:
       MaximumAutomaticAttempts: 10
       RetryAttemptSeconds: 600  
   CloudTrailEncryptionEnabled:
+    Controls:
+      - 10.5.1
     Properties:
       ConfigRuleName: cloud-trail-encryption-enabled
       Description: Checks whether AWS CloudTrail is configured to use the server side
@@ -106,6 +142,9 @@ Resources:
         SourceIdentifier: CLOUD_TRAIL_ENCRYPTION_ENABLED
     Type: AWS::Config::ConfigRule
   CloudTrailLogFileValidationEnabled:
+    Controls:
+      - 10.5.2
+      - 10.5.5
     Properties:
       ConfigRuleName: cloud-trail-log-file-validation-enabled
       Description: Checks whether AWS CloudTrail creates a signed digest file with
@@ -133,7 +172,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
         CloudTrailLogGroupArn:
           StaticValue:
             Values:
@@ -150,6 +189,8 @@ Resources:
           ConcurrentExecutionRatePercentage: 10
           ErrorPercentage: 10
   CloudwatchLogGroupEncrypted:
+    Controls:
+      - 10.5.1
     Properties:
       ConfigRuleName: cloudwatch-log-group-encrypted
       Description: Checks whether a log group in Amazon CloudWatch Logs is encrypted.
@@ -162,6 +203,8 @@ Resources:
         SourceIdentifier: CLOUDWATCH_LOG_GROUP_ENCRYPTED
     Type: AWS::Config::ConfigRule
   CodebuildProjectEnvvarAwscredCheck:
+    Controls:
+      - 8.2.1
     Properties:
       ConfigRuleName: codebuild-project-envvar-awscred-check
       Description: Checks whether the project contains environment variables AWS_ACCESS_KEY_ID
@@ -187,7 +230,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
         projectName:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -199,6 +242,8 @@ Resources:
       MaximumAutomaticAttempts: 10
       RetryAttemptSeconds: 600
   EipAttached:
+    Controls:
+      - '2.2'
     Properties:
       ConfigRuleName: eip-attached
       Description: Checks whether all EIP addresses allocated to a VPC are attached
@@ -223,7 +268,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
         AllocationId:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -235,6 +280,10 @@ Resources:
       MaximumAutomaticAttempts: 10
       RetryAttemptSeconds: 600
   IamPasswordPolicy:
+    Controls:
+      - 8.2.3
+      - 8.2.4
+      - 8.2.5
     Properties:
       ConfigRuleName: iam-password-policy
       Description: Checks whether the account password policy for IAM users meets
@@ -293,7 +342,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
       ExecutionControls:
         SsmControls:
           ConcurrentExecutionRatePercentage: 10
@@ -302,6 +351,10 @@ Resources:
       MaximumAutomaticAttempts: 5
       RetryAttemptSeconds: 60
   LambdaFunctionPublicAccessProhibited:
+    Controls:
+      - 1.2.1
+      - '1.3'
+      - '7.2'
     Properties:
       ConfigRuleName: lambda-function-public-access-prohibited
       Description: Checks whether the Lambda function policy prohibits public access.
@@ -313,6 +366,9 @@ Resources:
         SourceIdentifier: LAMBDA_FUNCTION_PUBLIC_ACCESS_PROHIBITED
     Type: AWS::Config::ConfigRule
   S3AccountLevelPublicAccessBlocks:
+    Controls:
+      - '1.3'
+      - '2.2'
     Properties:
       ConfigRuleName: s3-account-level-public-access-blocks
       Description: Checks whether the required public access block settings are configured
@@ -347,6 +403,10 @@ Resources:
         SourceIdentifier: S3_ACCOUNT_LEVEL_PUBLIC_ACCESS_BLOCKS
     Type: AWS::Config::ConfigRule
   S3BucketPublicReadProhibited:
+    Controls:
+      - 1.2.1
+      - '1.3'
+      - '7.2'
     Properties:
       ConfigRuleName: s3-bucket-public-read-prohibited
       Description: Checks that your Amazon S3 buckets do not allow public read access.
@@ -373,7 +433,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
         S3BucketName:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -385,6 +445,10 @@ Resources:
       MaximumAutomaticAttempts: 5
       RetryAttemptSeconds: 60
   S3BucketPublicWriteProhibited:
+    Controls:
+      - 1.2.1
+      - '1.3'
+      - '7.2'
     Properties:
       ConfigRuleName: s3-bucket-public-write-prohibited
       Description: Checks that your Amazon S3 buckets do not allow public write access.
@@ -411,7 +475,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
         S3BucketName:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -423,6 +487,8 @@ Resources:
       MaximumAutomaticAttempts: 5
       RetryAttemptSeconds: 60
   S3BucketServerSideEncryptionEnabled:
+    Controls:
+      - '3.4'
     Properties:
       ConfigRuleName: s3-bucket-server-side-encryption-enabled
       Description: Checks that your Amazon S3 bucket either has S3 default encryption
@@ -448,7 +514,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
         BucketName:
           ResourceValue:
             Value: "RESOURCE_ID"
@@ -464,6 +530,8 @@ Resources:
       MaximumAutomaticAttempts: 5
       RetryAttemptSeconds: 60
   S3BucketVersioningEnabled:
+    Controls:
+      - 10.5.3
     Properties:
       ConfigRuleName: s3-bucket-versioning-enabled
       Description: Checks whether versioning is enabled for your S3 buckets.
@@ -475,6 +543,10 @@ Resources:
         SourceIdentifier: S3_BUCKET_VERSIONING_ENABLED
     Type: AWS::Config::ConfigRule
   VpcDefaultSecurityGroupClosed:
+    Controls:
+      - '1.2'
+      - '1.3'
+      - '2.1'
     Properties:
       ConfigRuleName: vpc-default-security-group-closed
       Description: Checks that the default security group of any Amazon Virtual Private
@@ -500,7 +572,7 @@ Resources:
         AutomationAssumeRole:
           StaticValue:
             Values:
-              - arn:aws:iam::accountid:role/PCI-Org-automationassumerole-us-east-1
+              - arn:aws:iam::875914227481:role/PCI-Org-automationassumerole-us-east-1
         IpAddressToBlock:
           StaticValue:
             Values:
@@ -516,6 +588,21 @@ Resources:
       MaximumAutomaticAttempts: 10
       RetryAttemptSeconds: 600
 Conditions:
+  accessKeysRotatedParamMaxAccessKeyAge:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: AccessKeysRotatedParamMaxAccessKeyAge
+  acmCertificateExpirationCheckParamDaysToExpiration:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: AcmCertificateExpirationCheckParamDaysToExpiration
+  iamPasswordPolicyParamMaxPasswordAge:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: IamPasswordPolicyParamMaxPasswordAge
   iamPasswordPolicyParamMinimumPasswordLength:
     Fn::Not:
       - Fn::Equals:
@@ -546,11 +633,36 @@ Conditions:
       - Fn::Equals:
           - ''
           - Ref: IamPasswordPolicyParamRequireUppercaseCharacters
-  iamPasswordPolicyParamMaxPasswordAge:
+  iamUserUnusedCredentialsCheckParamMaxCredentialUsageAge:
     Fn::Not:
       - Fn::Equals:
           - ''
-          - Ref: IamPasswordPolicyParamMaxPasswordAge
+          - Ref: IamUserUnusedCredentialsCheckParamMaxCredentialUsageAge
+  restrictedIncomingTrafficParamBlockedPort1:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort1
+  restrictedIncomingTrafficParamBlockedPort2:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort2
+  restrictedIncomingTrafficParamBlockedPort3:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort3
+  restrictedIncomingTrafficParamBlockedPort4:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort4
+  restrictedIncomingTrafficParamBlockedPort5:
+    Fn::Not:
+      - Fn::Equals:
+          - ''
+          - Ref: RestrictedIncomingTrafficParamBlockedPort5
   s3AccountLevelPublicAccessBlocksParamBlockPublicAcls:
     Fn::Not:
       - Fn::Equals:
