@@ -8,8 +8,6 @@
 #   This custom conformance pack with remediations helps verify and remediate compliance with PCI DSS 3.2.1 requirements.. 
 #
 ##################################################################################
-AWSTemplateFormatVersion: 2010-09-09
-Description: Operational Best Practices for PCI DSS 3.2.1 wth remediations (qs-1t0eilb5g)
 
 Parameters:
   AccessKeysRotatedParamMaxAccessKeyAge:

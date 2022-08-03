@@ -313,7 +313,7 @@ Resources:
             Resource:
               !Sub |-
                 arn:aws:s3:::${SCS3MisconfiguredCloudTrailBucket}
-             Condition:
+            Condition:
               Bool:
                 'aws:SecureTransport': false
           - 

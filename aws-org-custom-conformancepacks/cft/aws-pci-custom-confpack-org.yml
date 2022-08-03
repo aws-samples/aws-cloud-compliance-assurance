@@ -20,12 +20,12 @@ Parameters:
   OrganizationConformancePackName:
     Description: Name of the custom config conformance pack
     Type: String
-    Default: 'aws-pcicustomconfpack-org'
+    Default: 'aws-pcicustomconfpack-remediations-org'
 
   TemplateS3Uri:
     Description: Location of S3 file containing the conformance pack template body. Points to the conformance pack template
     Type: String
-    Default: 's3://s3-pci-confpack-org/aws-pci-conformancepack-v1.yml'
+    Default: 's3://s3-pci-confpack-org/aws-pci-conformancepack-remediations-v1.yml'
 
 Resources:
 
@@ -34,5 +34,16 @@ Resources:
     Properties: 
       OrganizationConformancePackName: !Ref OrganizationConformancePackName
       DeliveryS3Bucket: !Ref DeliveryS3Bucket
+      ExcludedAccounts:
+        - "798653331051"
+        - "652691327122"
+        - "227214716926"
+        - "018299706242"
+        - "525354019754"
+        - "602116679243"
+        - "187355837323"
+        - "341476298946"
+        - "221809298128"
+        - "388407216922"
       TemplateS3Uri: !Ref TemplateS3Uri
     
