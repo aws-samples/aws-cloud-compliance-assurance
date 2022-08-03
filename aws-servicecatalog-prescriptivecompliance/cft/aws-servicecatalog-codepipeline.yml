@@ -19,7 +19,7 @@
 
 
 AWSTemplateFormatVersion: 2010-09-09
-Description: Uses AWS CodePipeline/CodeDeploy to update AWS Service Catalog Portfolio (qs-1t26ldp6k)
+Description: Uses AWS CodePipeline/CodeDeploy to update AWS Service Catalog Portfolio (qs-1t0eilb5g)
 
 ## Parameters
 Parameters:

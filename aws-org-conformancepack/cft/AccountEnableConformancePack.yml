@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: This template automatically deploy the AWS Config Conformance Pack for Operational Best Practices for AWS Identity And Access Management. Please note resource charges for S3 buckets, Config and Conformance pack will apply. (qs-1t26ldp2c)  
+Description: This template automatically deploy the AWS Config Conformance Pack for Operational Best Practices for AWS Identity And Access Management. Please note resource charges for S3 buckets, Config and Conformance pack will apply. (qs-1t0eilb5g)  
 Parameters:
   ConformancePackDeliveryBucket:
     Type: String

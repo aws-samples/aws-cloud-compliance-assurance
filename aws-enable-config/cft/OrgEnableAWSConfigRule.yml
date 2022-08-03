@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Enable AWS Config Managed Rule (qs-1t1p6e8u0)
+Description: Enable AWS Config Managed Rule (qs-1t0eilb5g)
 
 Parameters:
   OrganizationConfigRuleName:

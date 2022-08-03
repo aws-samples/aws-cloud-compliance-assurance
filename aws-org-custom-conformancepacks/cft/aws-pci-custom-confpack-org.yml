@@ -8,7 +8,7 @@
 # This code is made available under the MIT-0 license. See the LICENSE file.
 ################################################################################
 AWSTemplateFormatVersion: 2010-09-09
-Description: Provisions Org Custom Conformance Packs(qs-1t26ldp2c)
+Description: Provisions Org Custom Conformance Packs(qs-1t0eilb5g)
 
 Parameters:
 

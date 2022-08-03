@@ -19,7 +19,7 @@
 
 
 AWSTemplateFormatVersion: 2010-09-09
-Description: Uses AWS CodePipeline for CI/CD deployment of PCI Remediation Conformance Pack (qs-1t26ldp0d)
+Description: Uses AWS CodePipeline for CI/CD deployment of PCI Remediation Conformance Pack (qs-1t0eilb5g)
 
 ## Parameters
 Parameters:

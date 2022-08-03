@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Creates an AWS SSM Automation Runbook to Setup AWS Config with Athena and QuickSights(qs-1t26ldosb)
+Description: Creates an AWS SSM Automation Runbook to Setup AWS Config with Athena and QuickSights(qs-1t0eilb5g)
 
 Resources:
   SSMAutomationDocument:
