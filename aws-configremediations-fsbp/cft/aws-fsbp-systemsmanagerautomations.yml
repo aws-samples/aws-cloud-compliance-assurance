@@ -9,7 +9,7 @@
 # @author Kanishk Mahajan
 # ---------------------------------------------------------------------------------------------------
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CloudFormation Template 1 of 2 - Real Time Automated Remediation for Foundational Security Findings based on Security Hub. (qs-1t26ldot8)
+Description: CloudFormation Template 1 of 2 - Real Time Automated Remediation for Foundational Security Findings based on Security Hub. (qs-1t0eilb5g)
 
 Outputs:
   AutomationAssumeRoleArn:

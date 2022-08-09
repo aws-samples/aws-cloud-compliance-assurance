@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Deploy AWS Config Conformance Pack in an AWS Organization (qs-1t26ldp1f)
+Description: Deploy AWS Config Conformance Pack in an AWS Organization (qs-1t0eilb5g)
 
 Parameters:
   

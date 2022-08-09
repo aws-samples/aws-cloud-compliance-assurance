@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Enable AWS Config (qs-1t1p6e8tn)
+Description: Enable AWS Config (qs-1t0eilb5g)
 
 Metadata:
   AWS::CloudFormation::Interface:

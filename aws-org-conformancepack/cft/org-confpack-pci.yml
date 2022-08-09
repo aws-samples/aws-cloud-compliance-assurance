@@ -10,7 +10,7 @@
 ##################################################################################
 AWSTemplateFormatVersion: 2010-09-09
 Description: Operational Best Practices for PCI DSS 3.2.1
- This conformance pack helps verify compliance with PCI DSS 3.2.1 requirements.(qs-1t26ldp1m)
+ This conformance pack helps verify compliance with PCI DSS 3.2.1 requirements.(qs-1t0eilb5g)
 
 Parameters:
   AccessKeysRotatedParamMaxAccessKeyAge:

@@ -9,7 +9,7 @@
 # @author Kanishk Mahajan
 # ---------------------------------------------------------------------------------------------------
 AWSTemplateFormatVersion: 2010-09-09
-Description: CloudFormation Template 1 of 3 - Real Time Automated Remediation for CIS AWS Foundations Benchmark (qs-1t26ldp4m)
+Description: CloudFormation Template 1 of 3 - Real Time Automated Remediation for CIS AWS Foundations Benchmark (qs-1t0eilb5g)
 
 Outputs:
   FlowLogsRoleArn:

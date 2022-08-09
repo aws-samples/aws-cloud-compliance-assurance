@@ -12,7 +12,7 @@
 # @kmmahaj
 # ---------------------------------------------------------------------------------------------------
 AWSTemplateFormatVersion: 2010-09-09
-Description: REINFORCE Service Catalog remediations(qs-1t26ldp4t)
+Description: REINFORCE Service Catalog remediations(qs-1t0eilb5g)
 
 Parameters:
   S3StagingBucketURL:
