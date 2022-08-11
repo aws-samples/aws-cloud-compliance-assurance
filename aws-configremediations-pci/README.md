@@ -9,6 +9,7 @@ Template 1 first provisions AWS Systems Manager Automation Documents as well as 
 ## COVERAGE
 
 The solution provides remediations for the following PCI checks:
+```
 * [PCI.AutoScaling.1] Auto scaling groups associated with a load balancer should use health checks
 * [PCI.CloudTrail.1] CloudTrail logs should be encrypted at rest using AWS KMS CMK
 * [PCI.CloudTrail.2] CloudTrail should be enabled
@@ -37,6 +38,7 @@ The solution provides remediations for the following PCI checks:
 * [PCI.S3.3] S3 buckets should have cross-region replication enabled
 * [PCI.S3.4] S3 buckets should have server-side encryption enabled
 * [PCI.SSM.1] Amazon EC2 instances managed by Systems Manager should have a patch compliance status of COMPLIANT after a patch installation
+```
  
 ## Solution Design
 

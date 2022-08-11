@@ -1,0 +1,631 @@
+
+# -------------------------------------------------------------------------------------------------
+# Provisions Custom AWS Systems Manager Automation Documents  
+#
+# These SSM Automations are used for Remediations with Custom AWS Config Conformance Packs for PCI
+#
+
+# @kmmahaj
+# ---------------------------------------------------------------------------------------------------
+
+
+
+# Outputs here are used with ImportValue in the Custom PCI Conformance Packs
+Outputs:
+
+  AutomationAssumeRoleArn:
+    Description: Arn for AutomationAssumeRole
+    Value:
+      Fn::Join:
+        - ''
+        - - 'arn:aws:iam::'
+          - Ref: AWS::AccountId
+          - ':role/'
+          - !Ref AutomationAssumeRole
+    Export: # added to export
+      Name: AutomationAssumeRoleArn
+
+  
+  CloudTrailLogGroupArn:
+    Description: Arn for CloudTrail CloudWatch Logs
+    Value:
+      Fn::Join:
+          - ''
+          - - 'arn:aws:logs:'
+            - Ref: AWS::Region
+            - ':'
+            - Ref: AWS::AccountId
+            - !Sub ':log-group:${CloudTrailLogGroup}:*'
+    Export: # added to export
+      Name: PCI-Org-CloudTrailLogGroupArn
+  
+  CloudTrailLogGroup:
+    Description: CIS CloudTrail CloudWatch Log Group
+    Value: !Ref CloudTrailLogGroup
+    Export: # added to export
+      Name: PCI-Org-CloudTrailLogGroup
+
+  CloudWatchRoleArn:
+    Description: Arn for CloudTrail CloudWatch IAM Role 
+    Value:
+      Fn::Join:
+        - ''
+        - - 'arn:aws:iam::'
+          - Ref: AWS::AccountId
+          - ':role/'
+          - !Ref CloudWatchRole
+    Export: # added to export
+      Name: PCI-Org-CloudWatchRoleArn
+  
+  KMSKeyArn:
+    Description: Arn for KMS CMK
+    Value:
+      Fn::Join:
+        - ''
+        - - 'arn:aws:kms:'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':key/'
+          - !Ref KmsKeyId
+    Export: # added to export
+      Name: PCI-Org-KMSKeyArn
+
+Resources:
+
+# ------------------------------------------------------------------------------------------
+# PCI Remediations with AWS Config Conformance Pack - Pre-requesites
+#
+# Exported above. Pre-req AWS Services used in the Custom PCI Conformance Pack
+#
+# @kanishk.mahajan
+# ---------------------------------------------------------------------------------------------
+
+
+#CloudTrail CW Log Group
+  CloudTrailLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub PCI-Org-DefaultLogGroup-${AWS::Region}
+      RetentionInDays: 1827
+
+# SSM Automation Role
+  AutomationAssumeRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub PCI-Org-automationassumerole-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ssm.amazonaws.com
+                - events.amazonaws.com
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+
+# Cloud Watch Role
+  CloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub PCI-Org-CloudTrail_CloudWatchLogs_Role-${AWS::Region}
+      Policies:
+      - PolicyName: CloudWatchLogsRolePolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:StartAutomationExecution
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - iam:PassRole
+            - ec2:*
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - cloudtrail:UpdateTrail
+            - securityhub:UpdateFindings
+            Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: 
+            Service:
+              - cloudtrail.amazonaws.com 
+          Action:
+          - sts:AssumeRole
+
+# CIS KMS CMK
+  KmsKeyId:
+    Type: 'AWS::KMS::Key'
+    Properties:
+      EnableKeyRotation: true
+      Enabled: true
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS:
+                'Fn::Join':
+                  - ''
+                  - - 'arn:aws:iam::'
+                    - Ref: 'AWS::AccountId'
+                    - ':root'
+            Action: 'kms:*'
+            Resource: '*'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CloudTrail.1] CloudTrail logs should be encrypted at rest using AWS KMS CMKs
+#
+# SSM Automation Document that leverages input from AWS Config Remediation
+# Similar pattern is repeated for each automation document
+#
+# @kanishk.mahajan
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomCloudTrailEncryptionAutomationCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-CloudTrailEncryptionCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+          CloudTrailLogGroupArn:
+            type: String
+            default:
+              Fn::Join:
+                  - ''
+                  - - 'arn:aws:logs:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - !Sub ':log-group:${CloudTrailLogGroup}:*'
+          CloudWatchRoleArn:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref CloudWatchRole
+          TrailName:
+            type: String
+          KMSKeyArn:
+            type: String
+            default:
+              Fn::Join:
+                  - ''
+                  - - 'arn:aws:kms:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - ':key/'
+                    - !Ref KmsKeyId
+        mainSteps:
+          - name: EncryptCloudTrail
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: encrypttrail_handler
+              Script: "def encrypttrail_handler(events, context):\r\n  import boto3\r\n  cloudtrail = boto3.client('cloudtrail')\r\n\r\n  CloudTrailLogGroupArn = events['CloudTrailLogGroupArn']\r\n  CloudWatchRoleArn = events['CloudWatchRoleArn']\r\n  TrailName = events['TrailName']\r\n  KMSKeyArn = events['KMSKeyArn']\r\n\r\n  response = cloudtrail.update_trail(\r\n    Name=TrailName,\r\n    IncludeGlobalServiceEvents=True,\r\n    IsMultiRegionTrail=True,\r\n    EnableLogFileValidation=True,\r\n    CloudWatchLogsLogGroupArn=CloudTrailLogGroupArn,\r\n    CloudWatchLogsRoleArn=CloudWatchRoleArn,\r\n    KmsKeyId=KMSKeyArn\r\n  )   "
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                CloudTrailLogGroupArn: '{{CloudTrailLogGroupArn}}'
+                CloudWatchRoleArn: '{{CloudWatchRoleArn}}'
+                TrailName: '{{TrailName}}'
+                KMSKeyArn: '{{KMSKeyArn}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.KMS.1] Customer master key (CMK) rotation should be enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomCMKBackingKeyRotationCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-CMKBackingKeyRotationCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          KMSKeyArn:
+            type: String
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+        mainSteps:
+          - name: rotatebackingkey
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: rotatebackingkey_handler
+              Script: "def rotatebackingkey_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('kms')\r\n\r\n  KMSKeyArn = events['KMSKeyArn']\r\n\r\n  response = client.enable_key_rotation(\r\n    KeyId=KMSKeyArn\r\n  )"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                KMSKeyArn: '{{KMSKeyArn}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CloudTrail.4] CloudTrail trails should be integrated with CloudWatch Logs
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomCloudTrailUpdateCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-CloudTrailUpdateCF
+      Content:
+        description: CIS 2.4 – Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+          CloudTrailLogGroupArn:
+            type: String
+            default:
+              Fn::Join:
+                  - ''
+                  - - 'arn:aws:logs:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - !Sub ':log-group:${CloudTrailLogGroup}:*'
+          CloudWatchRoleArn:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref CloudWatchRole
+          TrailName:
+            type: String
+        mainSteps:
+          - name: UpdateCloudTrail
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updatetrail_handler
+              Script: "def updatetrail_handler(events, context):\r\n  import boto3\r\n  cloudtrail = boto3.client('cloudtrail')\r\n\r\n  CloudTrailLogGroupArn = events['CloudTrailLogGroupArn']\r\n  CloudWatchRoleArn = events['CloudWatchRoleArn']\r\n  TrailName = events['TrailName']\r\n\r\n  response = cloudtrail.update_trail(\r\n    Name=TrailName,\r\n    IncludeGlobalServiceEvents=True,\r\n    IsMultiRegionTrail=True,\r\n    EnableLogFileValidation=True,\r\n    CloudWatchLogsLogGroupArn=CloudTrailLogGroupArn,\r\n    CloudWatchLogsRoleArn=CloudWatchRoleArn\r\n  )\r\n"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                CloudTrailLogGroupArn: '{{CloudTrailLogGroupArn}}'
+                CloudWatchRoleArn: '{{CloudWatchRoleArn}}'
+                TrailName: '{{TrailName}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# PCI IAM 4– Updates IAM Account Settings Password Policy
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomIAMPasswordUpdateCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-IAMPasswordUpdateCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+        mainSteps:
+          - name: updatepasswordpolicy
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updateiampolicy_handler
+              Script: |
+                def updateiampolicy_handler(events, context):
+                  import boto3
+                  iam = boto3.client('iam')
+                  
+                  response = iam.update_account_password_policy(
+                                AllowUsersToChangePassword=True,
+                                HardExpiry=True,
+                                MaxPasswordAge=90 ,
+                                MinimumPasswordLength=14,
+                                PasswordReusePrevention=24,
+                                RequireLowercaseCharacters=True,
+                                RequireNumbers=True,
+                                RequireSymbols=True,
+                                RequireUppercaseCharacters=True)
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CloudTrail.3] CloudTrail log file validation should be enabled
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CustomLogFileValidationCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-LogFileValidationCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+          CloudTrailLogGroupArn:
+            type: String
+            default:
+              Fn::Join:
+                  - ''
+                  - - 'arn:aws:logs:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - !Sub ':log-group:${CloudTrailLogGroup}:*'
+          CloudWatchRoleArn:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref CloudWatchRole
+          TrailName:
+            type: String
+        mainSteps:
+          - name: EnableLogFileValidation
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: updatetrail_handler
+              Script: "def updatetrail_handler(events, context):\r\n  import boto3\r\n  cloudtrail = boto3.client('cloudtrail')\r\n\r\n  CloudTrailLogGroupArn = events['CloudTrailLogGroupArn']\r\n  CloudWatchRoleArn = events['CloudWatchRoleArn']\r\n  TrailName = events['TrailName']\r\n\r\n  response = cloudtrail.update_trail(\r\n    Name=TrailName,\r\n    IncludeGlobalServiceEvents=True,\r\n    IsMultiRegionTrail=True,\r\n    EnableLogFileValidation=True,\r\n    CloudWatchLogsLogGroupArn=CloudTrailLogGroupArn,\r\n    CloudWatchLogsRoleArn=CloudWatchRoleArn\r\n  )   "
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                CloudTrailLogGroupArn: '{{CloudTrailLogGroupArn}}'
+                CloudWatchRoleArn: '{{CloudWatchRoleArn}}'
+                TrailName: '{{TrailName}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.2] VPC default security group should prohibit inbound and outbound traffic
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  RestrictSecurityGroupPublicAccess:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-RestrictSecurityGroup
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          groupId:
+            type: String
+          IpAddressToBlock:
+            type: String
+            default: '0.0.0.0/0'
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+        mainSteps:
+          - name: RestrictSecurityGroup
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: restrict_sg
+              Script: "def restrict_sg(events, context):\r\n  import boto3\r\n  import json\r\n  import os\r\n  ec2 = boto3.resource('ec2')\r\n  defaultSecGroupId = events['groupId']\r\n  try:\r\n      defaultSG = ec2.SecurityGroup(defaultSecGroupId)\r\n      defaultIngress = defaultSG.ip_permissions\r\n      defaultEgress = defaultSG.ip_permissions_egress\r\n      revokeIngress = defaultSG.revoke_ingress(IpPermissions=defaultIngress)\r\n      revokeEgress = defaultSG.revoke_egress(IpPermissions=defaultEgress)\r\n  except Exception as e:\r\n      print(e)"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                groupId: '{{groupId}}'
+                IpAddressToBlock: '{{IpAddressToBlock}}'
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.3] Unused EC2 security groups should be removed
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  RemoveSecurityGroup:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-RemoveSecurityGroup
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          groupId:
+            type: String
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+        mainSteps:
+          - name: RemoveSecurityGroup
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: script_handler
+              Script: "def script_handler(events, context):\r\n  import boto3\r\n  ec2 = boto3.client('ec2')\r\n\r\n  groupId = events['groupId']\r\n  \r\n  response = ec2.delete_security_group(\r\n    GroupId= groupId\r\n  )\r\n "
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                groupId: '{{groupId}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.EC2.4] Unused EC2 EIPs should be removed
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  ReleaseEIP:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-ReleaseEIP
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+          allocationId:
+            type: String       
+        mainSteps:
+          - name: ReleaseEIP
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: script_handler
+              Script: "def script_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('ec2')\r\n\r\n  allocationId = events['allocationId']\r\n\r\n  response = client.release_address(\r\n    AllocationId= allocationId\r\n  )"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                allocationId: '{{allocationId}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# [PCI.CodeBuild.2] CodeBuild project environment variables should not contain clear text credentials
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  CodeBuildUpdateProject:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: PCI-Org-Custom-CodeBuildUpdateProject
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+          projectName:
+            type: String        
+        mainSteps:
+          - name: CodeBuildUpdateProject
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: script_handler
+              Script: "def script_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('codebuild')\r\n  projectName = events['projectName']\r\n\r\n  response = client.batch_get_projects(\r\n      names=[\r\n       projectName\r\n      ]\r\n  )\r\n    \r\n  projectenv = response['projects'][0]['environment']\r\n  projectenv1_type = \"projectenv type: \" + projectenv['type']\r\n  projectenvvars = projectenv['environmentVariables']\r\n    \r\n  for i in range(len(projectenvvars)):\r\n      if  projectenvvars[i]['name'] == 'AWS_ACCESS_KEY_ID':\r\n          del (projectenvvars[i])\r\n          break\r\n    \r\n  for i in range(len(projectenvvars)):\r\n      if  projectenvvars[i]['name'] == 'AWS_SECRET_ACCESS_KEY':\r\n          del (projectenvvars[i])\r\n          break\r\n        \r\n  response['projects'][0]['environment']['environmentVariables'] = projectenvvars\r\n  response1 = client.update_project(name=projectName, environment=response['projects'][0]['environment'])\r\n"
+              InputPayload:
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                projectName: '{{projectName}}'
