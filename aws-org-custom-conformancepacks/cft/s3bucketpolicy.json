@@ -1,75 +1,35 @@
 {
-
-        "Version": "2012-10-17",
-
-        "Statement": [
-
-            {
-
-                "Sid": "AllowGetPutObject",
-
-                "Effect": "Allow",
-
-                "Principal": "",
-
-                "Action": [
-
-                     "s3:GetObject",
-
-                     "s3:PutObject"
-
-                ],
-
-                "Resource": "arn:aws:s3:::awsconfigconforms<suffix in bucket name>/",
-
-                "Condition": {
-
-                    "StringEquals": {
-
-                        "aws:PrincipalOrgID": "customer_org_id"
-
-                    },
-
-                    "ArnLike": {
-
-                        "aws:PrincipalArn": "arn:aws:iam:::role/aws-service-role/config-conforms.amazonaws.com/AWSServiceRoleForConfigConforms“
-
-                    }
-
-                }
-
-            },
-
-            {
-
-                "Sid": "AllowGetBucketAcl",
-
-                "Effect": "Allow",
-
-                "Principal": "",
-
-                "Action": "s3:GetBucketAcl",
-
-                "Resource": "arn:aws:s3:::awsconfigconforms<suffix in bucket name>",
-
-                "Condition": {
-
-                    "StringEquals": {
-
-                        "aws:PrincipalOrgID": "customer_org_id"
-
-                    },
-
-                    "ArnLike": {
-
-                        "aws:PrincipalArn": "arn:aws:iam::*:role/aws-service-role/config-conforms.amazonaws.com/AWSServiceRoleForConfigConforms“
-
-                    }
-
-                }
-
-            }
-
-        ]
-
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::awsconfigconforms-orgbucket/*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:PrincipalOrgID": "o-s9coreqj0c"
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+                "s3:GetBucketAcl",
+                "s3:ListBucket",
+                "s3:GetBucketPolicy"
+            ],
+            "Resource": "arn:aws:s3:::awsconfigconforms-orgbucket",
+            "Condition": {
+                "StringEquals": {
+                    "aws:PrincipalOrgID": "o-s9coreqj0c"
+                }
+            }
+        }
+    ]
 }
