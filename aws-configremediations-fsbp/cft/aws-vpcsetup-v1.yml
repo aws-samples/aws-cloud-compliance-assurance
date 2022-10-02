@@ -1,0 +1,361 @@
+# ---------------------------------------------------------------------------------------------------------------
+# CloudFormation Template 1 of 2 - 
+# 1/Provisions staging subnet resources for DRS. 2/Also used for SAP HANA install  
+#
+# Staging-
+#  - vpc1
+#  - Subnets A1-A3 in AZ0
+#  - Subnets B1-B3 in AZ1
+#  - A1 and B1 are public subnets
+#  - A2 and B2 are private subnets with an outbound route via a NAT GW
+#
+# S3 VPC endpoint
+# IAM user for DRS agent- DRSUser with access key/secret 
+#
+# @kmmahaj
+#
+##
+## License: MIT-0
+# ----------------------------------------------------------------------------------------------------------------
+
+
+---
+Resources:
+  vpc1:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.10.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+      - Key: Name
+        Value: vpc1
+  vpc1snA1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: vpc1_sn_A1
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs: ''
+      CidrBlock: 10.10.0.0/20
+  vpc1snA2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: vpc1_sn_A2
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs: ''
+      CidrBlock: 10.10.64.0/20
+  vpc1snA3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: vpc1_sn_A3
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs: ''
+      CidrBlock: 10.10.128.0/20
+  vpc1snB1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: vpc1_sn_B1
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs: ''
+      CidrBlock: 10.10.16.0/20
+  vpc1snB2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: vpc1_sn_B2
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs: ''
+      CidrBlock: 10.10.80.0/20
+  vpc1snB3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: vpc1_sn_B3
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs: ''
+      CidrBlock: 10.10.144.0/20
+
+  igwvpc1:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: vpc1
+    Properties:
+      Tags:
+      - Key: Name
+        Value: IGW-VPC1
+  igwvpc1attachment:
+    DependsOn: igwvpc1
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: igwvpc1
+      VpcId:
+        Ref: vpc1
+  rtpublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: RT-Public
+  rtpublicdefault:
+    Type: AWS::EC2::Route
+    DependsOn: igwvpc1attachment
+    Properties:
+      RouteTableId:
+        Ref: rtpublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: igwvpc1
+  rtpublicpubA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: rtpublic
+      SubnetId:
+        Ref: vpc1snA1
+  rtpublicpubB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: rtpublic
+      SubnetId:
+        Ref: vpc1snB1
+  sgalb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: SG-ALB
+      GroupDescription: SG-ALB
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: SG-ALB
+      VpcId:
+        Ref: vpc1
+  sgbastion:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: SG-BASTION
+      GroupDescription: SG-BASTION
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: SG-BASTION
+      VpcId:
+        Ref: vpc1
+  sginternal:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: SG-INTERNAL
+      GroupDescription: SG-INTERNAL
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourceSecurityGroupId:
+          Ref: sgbastion
+      Tags:
+      - Key: Name
+        Value: SG-INTERNAL
+      VpcId:
+        Ref: vpc1
+  sginternalselfref:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId:
+        Ref: sginternal
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId:
+        Ref: sginternal
+
+  
+  NATGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIPA.AllocationId
+      SubnetId: !Ref vpc1snA1
+      Tags:
+      - Key: natgwprivatertable
+        Value: vpc1snA2
+  NATGatewayEIPA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc1
+  RouteNATGatewayA:
+    DependsOn: NATGatewayA
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref rtprivatea
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NATGatewayA
+
+   
+  NATGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIPB.AllocationId
+      SubnetId: !Ref vpc1snB1
+      Tags:
+      - Key: natgwprivatertable
+        Value: vpc1snB2
+  NATGatewayEIPB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc1
+  RouteNATGatewayB:
+    DependsOn: NATGatewayB
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref rtprivateb
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NATGatewayB
+
+  rtprivatea:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: RT-PrivateA
+  rtprivateb:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: vpc1
+      Tags:
+      - Key: Name
+        Value: RT-PrivateB
+
+  rtprivatea2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: rtprivatea
+      SubnetId:
+        Ref: vpc1snA2
+  rtprivatea3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: rtprivatea
+      SubnetId:
+        Ref: vpc1snA3
+  rtprivateb2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: rtprivateb
+      SubnetId:
+        Ref: vpc1snB2
+  rtprivateb3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: rtprivateb
+      SubnetId:
+        Ref: vpc1snB3
+  
+  S3Endpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - 's3:*'
+            Resource:
+              - 'arn:aws:s3:::*'
+      RouteTableIds:
+        - !Ref rtpublic
+      ServiceName: !Join 
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .s3
+      VpcId: !Ref vpc1
+
+Outputs:
+  vpc1id:
+    Description: ID of VPC 1
+    Value:
+      Ref: vpc1
+    Export:
+      Name: vpc1id
+  vpc1snA1:
+    Description: ID of Subnet A1 in VPC 1
+    Value:
+      Ref: vpc1snA1
+    Export:
+      Name: vpc1snA1
+  vpc1snA2:
+    Description: ID of Subnet A2 in VPC 1
+    Value:
+      Ref: vpc1snA2
+    Export:
+      Name: vpc1snA2
+  vpc1snB1:
+    Description: ID of Subnet B1 in VPC 1
+    Value:
+      Ref: vpc1snB1
+    Export:
+      Name: vpc1snB1
+  vpc1snB2:
+    Description: ID of Subnet B2 in VPC 1
+    Value:
+      Ref: vpc1snB2
+    Export:
+      Name: vpc1snB2
+  sginternal:
+    Description: ID of SG-INTERNAL for EC2 Instances
+    Value:
+      Ref: sginternal
+    Export:
+      Name: sginternal
