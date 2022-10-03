@@ -1,0 +1,285 @@
+
+# -------------------------------------------------------------------------------------------------
+# CloudFormation Template 1 of 2 - Custom SSM remediations with Change Manager  
+#
+# Provisions 
+#  1/ custom SSM automation for enabling VPC Flow Logs
+#  2/ custom SSM automation that incorporates Change Manager
+# 
+# @kmmahaj
+# ---------------------------------------------------------------------------------------------------
+
+
+Outputs:
+  FlowLogsRoleArn:
+    Description: Arn for FlowsLogsRole
+    Value: 
+      Fn::Join:
+        - ''
+        - - 'arn:aws:iam::'
+          - Ref: AWS::AccountId
+          - ':role/'
+          - !Ref FlowLogsRole
+    Export: # added to export
+      Name: FlowLogsRoleArn
+  AutomationAssumeRoleArn:
+    Description: Arn for AutomationAssumeRole
+    Value:
+      Fn::Join:
+        - ''
+        - - 'arn:aws:iam::'
+          - Ref: AWS::AccountId
+          - ':role/'
+          - !Ref AutomationAssumeRole
+    Export: # added to export
+      Name: AutomationAssumeRoleArn
+  FlowLogsCloudWatchLogGroupArn:
+    Description: Arn for FlowLogs CloudWatchLogs
+    Value:
+      Fn::Join:
+          - ''
+          - - 'arn:aws:logs:'
+            - Ref: AWS::Region
+            - ':'
+            - Ref: AWS::AccountId
+            - !Sub ':log-group:${FlowLogsCloudWatchLogs}'
+    Export: # added to export
+      Name: FlowLogsCloudWatchLogGroupArn
+  FlowLogsCloudWatchLogs:
+    Description: Name of FlowLogs CloudWatch Logs
+    Value: !Ref FlowLogsCloudWatchLogs
+    Export: # added to export
+      Name: FlowLogsCloudWatchLogs
+
+Resources:
+
+# ------------------------------------------------------------------------------------------
+# Pre-requisites
+# ---------------------------------------------------------------------------------------------
+
+#FlowLogs CW Log Group
+  FlowLogsCloudWatchLogs: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub flowlogscloudwatchlogs-${AWS::Region}
+      RetentionInDays: 1827
+
+# Flow Logs Role
+  FlowLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub flowlogsrole-${AWS::Region}
+      Policies:
+      - PolicyName: FlowLogsPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:StartAutomationExecution
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - iam:PassRole
+            - ec2:*
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - cloudtrail:UpdateTrail
+            - securityhub:UpdateFindings
+            Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: 
+            Service:
+              - vpc-flow-logs.amazonaws.com 
+              - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+
+# SSM Automation Role
+  AutomationAssumeRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub changemgr-automationassumerole-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ssm.amazonaws.com
+                - events.amazonaws.com
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 2.9 – Ensure VPC flow logging is enabled in all VPCs
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  EnableVPCFlowLogsCF:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Name: Custom-EnableVPCFlowLogsCF
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          CloudWatchLogGroupArn:
+            type: String
+            default:
+              Fn::Join:
+                  - ''
+                  - - 'arn:aws:logs:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - !Sub ':log-group:${FlowLogsCloudWatchLogs}'
+          FlowLogRoleArn:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref FlowLogsRole
+          CloudWatchLogGroupName:
+            type: String
+            default: !Ref FlowLogsCloudWatchLogs
+          VpcId:
+            type: String
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+        mainSteps:
+          - name: EnableFlowLogs
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.6
+              Handler: enableflowlogs_handler
+              Script: "def enableflowlogs_handler(events, context):\r\n  import boto3\r\n  client = boto3.client('ec2')\r\n\r\n  CloudWatchLogGroupArn = events['CloudWatchLogGroupArn']\r\n  FlowLogRoleArn = events['FlowLogRoleArn']\r\n  CloudWatchLogGroupName = events['CloudWatchLogGroupName']\r\n  VpcId = events['VpcId']\r\n  AutomationAssumeRole = events['AutomationAssumeRole']\r\n\r\n  response = client.create_flow_logs(\r\n    DeliverLogsPermissionArn=FlowLogRoleArn,\r\n    ResourceIds=[\r\n        VpcId\r\n    ],\r\n    ResourceType='VPC',\r\n    TrafficType='REJECT',\r\n    LogDestinationType='cloud-watch-logs',\r\n    LogDestination=CloudWatchLogGroupArn\r\n  )"
+              InputPayload:
+                CloudWatchLogGroupName: '{{CloudWatchLogGroupName}}'
+                CloudWatchLogGroupArn: '{{CloudWatchLogGroupArn}}'
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                FlowLogRoleArn: '{{FlowLogRoleArn}}'
+                VpcId: '{{VpcId}}'
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# Change Manager automation – Ensure VPC flow logging is enabled in all VPCs
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  EnableChangeManagerVPCFlowLogsCF:
+    Type: AWS::SSM::Document
+    DependsOn: EnableVPCFlowLogsCF
+    Properties:
+      DocumentType: Automation
+      Name: Custom-EnableChangeManagerVPCFlowLogs
+      Content:
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:iam::'
+              - Ref: AWS::AccountId
+              - ':role/'
+              - !Ref AutomationAssumeRole
+        parameters:
+          CloudWatchLogGroupArn:
+            type: String
+            default:
+              Fn::Join:
+                  - ''
+                  - - 'arn:aws:logs:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - !Sub ':log-group:${FlowLogsCloudWatchLogs}'
+          FlowLogRoleArn:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref FlowLogsRole
+          CloudWatchLogGroupName:
+            type: String
+            default: !Ref FlowLogsCloudWatchLogs
+          VpcId:
+            type: String
+          AutomationAssumeRole:
+            type: String
+            default:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:iam::'
+                  - Ref: AWS::AccountId
+                  - ':role/'
+                  - !Ref AutomationAssumeRole
+        mainSteps:
+          - name: EnableChangeManagerVPCFlowLogs
+            action: 'aws:executeScript'
+            inputs:
+              Runtime: python3.8
+              Handler: script_handler
+              Script: |
+                def script_handler(events, context):
+                  import boto3
+                  ssm_client = boto3.client('ssm')
+                  CloudWatchLogGroupName = events['CloudWatchLogGroupName']
+                  CloudWatchLogGroupArn = events['CloudWatchLogGroupArn']
+                  FlowLogRoleArn = events['FlowLogRoleArn']
+                  VpcId = events['VpcId']
+                  AutomationAssumeRole = events['AutomationAssumeRole'] 
+                  response = ssm_client.start_change_request_execution(
+                    DocumentName='changemanager-enable-vpc-flow-logs',
+                    Runbooks=[
+                        {
+                             'DocumentName': 'Custom-EnableVPCFlowLogsCF',
+                             'Parameters': {
+                                 'CloudWatchLogGroupName' : [CloudWatchLogGroupName],
+                                 'CloudWatchLogGroupArn' : [CloudWatchLogGroupArn],
+                                 'FlowLogRoleArn' : [FlowLogRoleArn],
+                                 'AutomationAssumeRole': [AutomationAssumeRole],
+                                 'VpcId': [VpcId]
+                             }
+                          
+                        }
+                    ]
+                  )
+              InputPayload:
+                CloudWatchLogGroupName: '{{CloudWatchLogGroupName}}'
+                CloudWatchLogGroupArn: '{{CloudWatchLogGroupArn}}'
+                AutomationAssumeRole: '{{AutomationAssumeRole}}'
+                FlowLogRoleArn: '{{FlowLogRoleArn}}'
+                VpcId: '{{VpcId}}'
+

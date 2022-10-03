@@ -1,0 +1,147 @@
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+#  CloudFormation Template 2 of 2- 
+# 
+# Provisions 
+# 1/ Config rule and
+# 2/ Config remediation using Change Manager based SSM automation 
+#
+# 
+# @kmmahaj
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Resources:
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# CIS AWS Foundations Benchmark - 2.9 – Ensure VPC flow logging is enabled in all VPCs
+#
+# The 1st half AWS::Config::ConfigRule provides detection with SourceIdentifier - AWS Managed Config Rule
+# The 2nd half AWS::Config::RemediationConfiguration provides remediation with Change Manager
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  VPCFlowLogsEnabled:
+    Type: "AWS::Config::ConfigRule"
+    Properties:
+      ConfigRuleName: VPCFlowLogsEnabled
+      Description: "Ensures VPC Flow Logs are Enabled"
+      Source:
+        Owner: AWS
+        SourceIdentifier: VPC_FLOW_LOGS_ENABLED
+      MaximumExecutionFrequency: One_Hour
+  VPCFlowLogsEnabledRemediation:
+    DependsOn: VPCFlowLogsEnabled
+    Type: 'AWS::Config::RemediationConfiguration'
+    Properties:
+      ConfigRuleName: VPCFlowLogsEnabled
+      TargetId: "Custom-EnableChangeManagerVPCFlowLogs"
+      TargetType: "SSM_DOCUMENT"
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !ImportValue AutomationAssumeRoleArn
+        CloudWatchLogGroupArn:
+          StaticValue:
+            Values:
+              - !ImportValue FlowLogsCloudWatchLogGroupArn
+        CloudWatchLogGroupName:
+          StaticValue:
+            Values:
+              - !ImportValue FlowLogsCloudWatchLogs
+        FlowLogRoleArn:
+          StaticValue:
+            Values:
+              - !ImportValue FlowLogsRoleArn
+        VpcId:
+          ResourceValue:
+            Value: "RESOURCE_ID"
+      ExecutionControls:
+        SsmControls:
+          ConcurrentExecutionRatePercentage: 10
+          ErrorPercentage: 10
+      Automatic: True
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+
+#------------------------------------------------------------------------------------------
+# On Demand Config Evaluation Lambda for AWS Config Rules:
+#  -- Provides a live demo experience to the user
+#  -- Triggers Detection at 2 min intervals of misconfigured resources via AWS Config
+#-------------------------------------------------------------------------------------------
+  
+  OnDemandConfigEvalEventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Name: OnDemandConfigEvalEventRule
+      Description: "Trigger On Demand Evaluation of Config Rules for Game Day"
+      State: "ENABLED"
+      ScheduleExpression: "rate(2 minutes)"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "OnDemandConfigEvalLambda"
+              - "Arn"
+          Id: "OnDemandConfigEval"
+
+  PermissionForEventsToInvokeConfigLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt "OnDemandConfigEvalLambda.Arn"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt "OnDemandConfigEvalEventRule.Arn"
+
+  OnDemandConfigEvalLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import json
+          import os
+          import boto3
+          import logging
+          LOGGER = logging.getLogger()
+          LOGGER.setLevel(logging.INFO)
+          def lambda_handler(event, context):
+              try:
+                  ruleName1 = os.environ['ruleName1']
+                  client = boto3.client('config')
+                  response = client.start_config_rules_evaluation(
+                      ConfigRuleNames=[
+                      ruleName1
+                      ]
+                  )
+              except Exception as e:
+                  print(e)
+                  print("AWS Config Evaluation execution error")
+                  raise
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt "OnDemandConfigEvalLambdaRole.Arn"
+      Runtime: python3.7
+      Timeout: 60
+      Environment:
+        Variables:
+          ruleName1: 'VPCFlowLogsEnabled'
+
+
+  # On Demand Config Eval Role
+  OnDemandConfigEvalLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub demo-OnDemandConfigEvalLambdaRole-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
