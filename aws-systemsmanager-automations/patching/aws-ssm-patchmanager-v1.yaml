@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'AWS-RunPatchBaseline'
+
+# ---------------------------------------------------------------------------------------------------------
+#  CloudFormation Template 1 of 2 - Patch Manager association
+#  
+# 
+# @kmmahaj
+##
+## License:
+## This code is made available under the MIT-0 license. See the LICENSE file.
+# ------------------------------------------------------------...............................................
+
+Outputs:
+  StackArn:
+    Value:
+      Ref: AWS::StackId
+Conditions:
+  ShouldEnablePatching:
+    Fn::Equals:
+    - Ref: EnableWeeklyPatching
+    - 'True'
+  PatchWeekly:
+    Type: AWS::SSM::Association
+    Properties:
+      Name: AWS-RunPatchBaseline
+      ScheduleExpression: rate(7 days)
+      AssociationName:
+        Fn::Sub: "${AWS::AccountId}-PatchWeekly"
+      Parameters:
+        Operation:
+        - Install
+        - Scan
+      Targets:
+      - Values:
+        - "*"
+        Key: InstanceIds
+Parameters:
+  EnableWeeklyPatching:
+    Default: 'True'
+    Type: String
+    Description: True or False
+    AllowedValues:
+    - 'True'
+    - 'False'

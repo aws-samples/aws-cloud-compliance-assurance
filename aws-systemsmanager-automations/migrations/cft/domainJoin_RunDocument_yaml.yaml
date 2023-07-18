@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SSM Document for Domain Join Automation
+Parameters:
+  DomainJoinSSMDocumentName:
+    Type: String
+    Description: Name for the Domain Join SSM Run Document created by this stack
+    Default: DomainJoinAutomation
+Resources:
+  MySSMDocument:
+    Type: 'AWS::SSM::Document'
+    Properties:
+      Content:
+        schemaVersion: '2.2'
+        description: This document will be used for domain join of EC2 instances.
+        parameters:
+          DomainName:
+            type: String
+            description: (Required) FQDN of AD
+            default: corp.example.com
+          DomainJoinUserName:
+            type: String
+            description: (Required) Domain Username SSM Parameter
+            default: domainAdmin
+          DomainJoinPassword:
+            type: String
+            description: (Required) Domain User password SSM Parameter
+            default: domainPassword
+        mainSteps:
+          - precondition:
+              StringEquals:
+                - platformType
+                - Windows
+            action: aws:runPowerShellScript
+            name: DomainJoinWindows
+            inputs:
+              timeoutSeconds: 7200
+              runCommand: 
+                - "Import-Module -name AWSPowerShell"
+                - "$DomainJoined = ''"
+                - "##### Get Current Computer info #####"
+                - "$ComputerInfo = get-computerinfo"
+                - "$CurrentDomain = $ComputerInfo.csdomain"
+                - "##### Check if Computer is not joined to Domain #####"
+                - "IF ($CurrentDomain -eq 'WORKGROUP'){"
+                - "$DomainJoined = '$False'}"
+                - "Else {"
+                - "$DomainJoined = '$True'"
+                - "echo \"Instance is joined to the domain\""
+                - "exit 0"
+                - "}"
+                - "##### Domain Join Credentials #####"
+                - "$DomainAccount = (Get-SSMParameter -Name {{DomainJoinUserName}} -WithDecryption $True).Value"
+                - "$UserAccount = \"{{DomainName}}\\$DomainAccount\""
+                - "$Password = (Get-SSMParameter -Name {{DomainJoinPassword}} -WithDecryption $True).Value | ConvertTo-SecureString -asPlainText -Force"
+                - "##### Create credential object #####"
+                - "$credential = New-Object System.Management.Automation.PSCredential($UserAccount,$Password)"
+                - "##### Join Domain#####"
+                - "IF ($DomainJoined -eq '$False'){"
+                - "Add-Computer -DomainName {{DomainName}} -Credential $credential -Verbose"
+                - "$DomainJoined = '$True'"
+                - "#Restart-Computer -Force"
+                - "exit 3010"
+                - "}"
+                - "##### Exit Gracefully after setting Domain Joined to True #####"
+                - "IF ($DomainJoined -eq '$True')"
+                - "{"
+                - "echo \"Run document execution completed successfully\""
+                - "exit 0"
+                - "}"
+          - precondition:
+              StringEquals:
+                - platformType
+                - Linux
+            action: aws:runShellScript
+            name: DomainJoinLinux
+            inputs:
+              timeoutSeconds: 7200
+              runCommand:
+                - "if [ -f /tmp/ad_join_reboot ]; then"
+                - "echo \"Document executed successfully\""
+                - "rm -f /tmp/ad_join_reboot"
+                - "exit 0"
+                - "fi"
+                - " "
+                - "sudo yum -y update"
+                - "sudo yum -y install sssd realmd krb5-workstation samba-common-tools"
+                - "sudo yum -y install oddjob oddjob-mkhomedir sssd adcli"
+                - "domainJoinPassword=$(aws ssm get-parameter --name {{DomainJoinPassword}} --with-decryption --query \"Parameter.Value\" --output text)"
+                - "domainJoinUsername=$(aws ssm get-parameter --name {{DomainJoinUserName}} --with-decryption --query \"Parameter.Value\" --output text)"
+                - "## test if already joined to {{DomainName}} realm ##"
+                - "if [[ $(realm list | grep {{DomainName}}) ]] ; then"
+                - "echo \"{{DomainName}} realm configured\""
+                - "exit 0"
+                - "fi"
+                - " "
+                - "#### Join Domain ####"
+                - "echo ${domainJoinPassword} | sudo realm join -U ${domainJoinUsername} {{DomainName}} -v"
+                - "if [ $? -ne 0 ]; then"
+                - "echo \"Unable to join domain.Exiting..\""
+                - "exit 1"
+                - "fi"
+                - " "
+                - "#### Update sshd_config ####"
+                - "/usr/bin/sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config"
+                - " "
+                - "touch /tmp/ad_join_reboot"
+                - "exit 194"
+      DocumentType: Command
+      Name: !Ref DomainJoinSSMDocumentName

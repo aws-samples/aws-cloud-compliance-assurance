@@ -1,0 +1,2273 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  AMI:
+    Default: /aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  MADDomainName:
+    AllowedPattern: ^([a-zA-Z0-9]+[\\.-])+([a-zA-Z0-9])+$
+    Default: corp.example.com
+    Description: Fully qualified domain name (FQDN) of the AWS Managed Microsoft AD domain e.g. corp.example.com
+    MaxLength: '255'
+    MinLength: '2'
+    Type: String
+  MADNetBIOSName:
+    AllowedPattern: ^[^\\/:*?"<>|.]+[^\\/:*?"<>|]*$
+    Default: CORP
+    Description: NetBIOS name of the AWS Managed Microsoft AD domain (up to 15 characters) e.g. CORP
+    MaxLength: '15'
+    MinLength: '1'
+    Type: String
+  OnpremDomainName:
+    AllowedPattern: ^([a-zA-Z0-9]+[\\.-])+([a-zA-Z0-9])+$
+    Default: onprem.local
+    Description: Fully qualified domain name (FQDN) of the On-Premises domain e.g. onprem.local
+    MaxLength: '255'
+    MinLength: '2'
+    Type: String
+  OnpremNetBIOSName:
+    AllowedPattern: ^[^\\/:*?"<>|.]+[^\\/:*?"<>|]*$
+    Default: ONPREM
+    Description: NetBIOS name of the On-Premises domain (up to 15 characters) e.g. ONPREM
+    MaxLength: '15'
+    MinLength: '1'
+    Type: String 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Configuration
+        Parameters:
+          - AMI
+          - MADDomainName
+          - MADNetBIOSName
+          - OnpremDomainName
+          - OnpremNetBIOSName
+    ParameterLabels:
+      AMI:
+        default: SSM Parameter Value for Latest AMI ID
+      MADDomainName:
+        default: AWS Managed Microsft AD Domain DNS Name
+      MADNetBIOSName:
+        default: AWS Managed Microsft AD Domain NetBIOS Name
+      OnpremDomainName:
+        default: On-Premises Domain DNS Name
+      OnpremNetBIOSName:
+        default: On-Premises Domain NetBIOS Name
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: AD-ID-VPC
+  VPCPublicSubnet1Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 0
+        - Fn::GetAZs: !Ref AWS::Region
+      CidrBlock: !Select
+        - 0
+        - Fn::Cidr:
+            - !GetAtt VPC.CidrBlock
+            - 2
+            - 6
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: AD-ID-Subnet1
+      VpcId: !Ref VPC
+  VPCPublicSubnet1RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: AD-ID-Subnet1
+      VpcId: !Ref VPC
+  VPCPublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: VPCPublicSubnet1RouteTable
+      SubnetId:
+        Ref: VPCPublicSubnet1Subnet
+  VPCPublicSubnet1DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCVPCGW
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: VPCIGW
+      RouteTableId:
+        Ref: VPCPublicSubnet1RouteTable
+  VPCPublicSubnet2Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 1
+        - Fn::GetAZs: !Ref AWS::Region
+      CidrBlock: !Select
+        - 1
+        - Fn::Cidr:
+            - !GetAtt VPC.CidrBlock
+            - 2
+            - 6
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: AD-ID-Subnet2
+      VpcId: !Ref VPC
+  VPCPublicSubnet2RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: AD-ID-Subnet2
+      VpcId: !Ref VPC
+  VPCPublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: VPCPublicSubnet2RouteTable
+      SubnetId:
+        Ref: VPCPublicSubnet2Subnet
+  VPCPublicSubnet2DefaultRoute:
+    DependsOn: VPCVPCGW
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: VPCIGW
+      RouteTableId:
+        Ref: VPCPublicSubnet2RouteTable
+  VPCIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: AD-ID-VPC-IGW
+  VPCVPCGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: VPCIGW
+      VpcId: !Ref VPC
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        !Sub
+          - 'aws-id-${RandomGUID}'
+          - { RandomGUID: !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref AWS::StackId ]]]] }
+      VersioningConfiguration:
+        Status: Enabled
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action: cloudformation:SignalResource
+                Effect: Allow
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+              - Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Effect: Allow                  
+                Resource:
+                  - !Ref MadAdminSecret
+                  - !Ref OnPremAdministratorSecret
+                  - !Ref OnPremAltAdminSecret
+                  - !Ref OnPremRestoreModeSecret
+                  - !Ref RdsAdminSecret
+              - Action: ssm:SendCommand
+                Effect: Allow
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:*:document/AWS-RunRemoteScript
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:*:document/AWS-RunPowerShellScript
+              - Action: ssm:SendCommand
+                Condition:
+                  StringEquals:
+                    ssm:ResourceTag/aws:cloudformation:stack-name:
+                      Ref: AWS::StackName
+                Effect: Allow
+                Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+              - Action:
+                  - ds:AddRegion
+                  - ds:CreateConditionalForwarder
+                  - ds:CreateLogSubscription
+                  - ds:CreateMicrosoftAD
+                  - ds:CreateTrust
+                  - ds:DeleteConditionalForwarder
+                  - ds:DeleteTrust
+                  - ds:Describe*
+                  - ds:Get*
+                  - ds:List*
+                  - ds:RegisterEventTopic
+                  - ds:RejectSharedDirectory
+                  - ds:RemoveRegion
+                  - ds:ShareDirectory
+                  - ds:UnshareDirectory
+                  - ds:UpdateConditionalForwarder
+                  - ds:UpdateTrust
+                  - ds:VerifyTrust
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:CreateNetworkInterface
+                  - ec2:CreateSecurityGroup
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DeleteSecurityGroup
+                  - ec2:DescribeInstances
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:DescribeSecurityGroups
+                  - logs:CreateLogGroup
+                  - logs:GetLogEvents
+                  - logs:PutResourcePolicy
+                  - sns:GetTopicAttributes
+                  - sns:ListSubscriptions
+                  - sns:ListSubscriptionsByTopic
+                  - sns:ListTopics
+                  - ssm:DescribeInstanceInformation
+                  - ssm:ListCommands
+                  - ssm:ListCommandInvocations
+                  - ssm:StartAutomationExecution
+                  - sts:GetCallerIdentity
+                Effect: Allow
+                Resource: "*"
+          PolicyName: Inline-Policy
+      RoleName: AD-ID-InstanceRole
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: AD-ID-InstanceRole
+      Path: /
+      Roles:
+        - Ref: InstanceRole
+  SdjInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMDirectoryServiceAccess
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - ec2:RebootInstances
+                  - ec2:DeleteTags
+                  - ec2:CreateTags
+                Effect: Allow
+                Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+          PolicyName: Inline-Policy
+      RoleName: ec2-domain-join
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+  SdjInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: ec2-domain-join
+      Path: /
+      Roles:
+        - Ref: SdjInstanceRole
+  RDSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - rds.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonRDSDirectoryServiceAccess
+      Path: /
+      RoleName: AD-ID-RDSRole
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+  MadAdminSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: MadAdminSecret
+      Description: Admin Password for AWS Managed Microsoft AD 
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "Admin"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+  OnPremAdministratorSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: OnPremAdministratorSecret
+      Description: Administrator Password for Onpremises AD
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "Administrator"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+  OnPremAltAdminSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: OnPremAltAdminSecret
+      Description: Alternate Admin Password for Onpremises AD
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "Admin"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+  OnPremRestoreModeSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: OnPremRestoreModeSecret
+      Description: Restore Mode Password for Onpremises AD
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "Administrator"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+  RdsAdminSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: RdsAdminSecret
+      Description: SQL Password for Amazon RDS 
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+  ManagedAD:
+    Type: AWS::DirectoryService::MicrosoftAD
+    Properties:
+      CreateAlias: false
+      Edition: Enterprise
+      EnableSso: false
+      Name: !Ref MADDomainName
+      Password: !Sub '{{resolve:secretsmanager:${MadAdminSecret}:SecretString:password}}'
+      ShortName: !Ref MADNetBIOSName
+      VpcSettings:
+        SubnetIds:
+          - !Ref VPCPublicSubnet1Subnet
+          - !Ref VPCPublicSubnet2Subnet
+        VpcId: !Ref VPC
+  DomainMemberSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: MAD Domain Members and RDS SG
+      GroupName: AD-ID-DomainMemberSG
+      SecurityGroupIngress:
+        - Description: All Local VPC Traffic
+          FromPort: -1
+          IpProtocol: "-1"
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: -1
+        - Description: SSH Access
+          FromPort: 22
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 22
+        - Description: PKI Access
+          FromPort: 135
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 135
+        - Description: SQL Access
+          FromPort: 1433
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 1433
+        - Description: RDP Access
+          FromPort: 3389
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 3389
+        - Description: PKI Ephemeral Access
+          FromPort: 49152
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 65535
+      Tags:
+        - Key: Name
+          Value: DomainMembersSecurityGroup
+      VpcId: !Ref VPC
+  MgmtInstanceSSMAuto:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Content:
+        schemaVersion: '0.3'
+        description: Deploy MGMT Instance with SSM Automation
+        parameters:
+          MadAdminSecret:
+            description: AWS Secrets Parameter Name for the MAD Admin account.
+            type: String
+          MadDomainDNSName:
+            description: Fully qualified domain name (FQDN) of the forest root domain e.g. corp.example.com
+            type: String
+          MadDomainNetBIOSName:
+            description: NetBIOS name of the domain (up to 15 characters) for users of earlier versions of Windows e.g. CORP
+            type: String
+          MadDcIP01:
+            description: IP of DNS server that can resolve domain (Must be accessible)
+            type: String
+          MadDcIP02:
+            description: IP of DNS server that can resolve domain (Must be accessible)
+            type: String
+          MgmtServerNetBIOSName:
+            description: NetBIOS name of the Management Instance server (up to 15 characters)
+            type: String
+          StackName:
+            description: Stack Name Input for cfn resource signal
+            type: String
+          VPCCIDR:
+            description: CIDR Block for the VPC
+            type: String
+        mainSteps:
+          - name: mgmtInstanceId
+            action: aws:executeAwsApi
+            onFailure: step:signalfailure
+            inputs:
+              Service: ec2
+              Api: DescribeInstances
+              Filters:
+                - Name: tag:Name
+                  Values: ['{{MgmtServerNetBIOSName}}']
+                - Name: tag:aws:cloudformation:stack-name
+                  Values: ['{{StackName}}']
+                - Name: instance-state-name
+                  Values: ['running']
+            outputs:
+              - Name: InstanceId
+                Selector: $.Reservations[0].Instances[0].InstanceId
+                Type: String
+            nextStep: intializeInstance
+          - name: intializeInstance
+            action: aws:runCommand
+            inputs:
+              DocumentName: AWS-RunPowerShellScript
+              InstanceIds:
+                - '{{mgmtInstanceId.InstanceId}}'
+              Parameters:
+                commands: |-
+                  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+                  $RegistryItems = @(
+                      @{
+                          Name         = 'SchUseStrongCrypto'
+                          Path         = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\.NETFramework\v4.0.30319'
+                          Value        = '1'
+                          PropertyType = 'DWORD'
+                      },
+                      @{
+                          Name         = 'SchUseStrongCrypto'
+                          Path         = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\.NETFramework\v4.0.30319'
+                          Value        = '1'
+                          PropertyType = 'DWORD'
+                      }
+                  )
+
+                  Foreach ($RegistryItem in $RegistryItems) {
+                      Try {
+                          $Null = New-ItemProperty @RegistryItem -Force -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to create Registry key named $($RegistryItem.Name) at $($RegistryItem.Path) $_"
+                          Exit 1
+                      }
+                  }
+
+                  $Modules = @(
+                      @{
+                          Name = 'ActiveDirectoryDsc'
+                          Version = '6.0.1'
+                      },
+                      @{
+                          Name = 'ComputerManagementDsc'
+                          Version = '8.5.0'
+                      },
+                      @{
+                          Name = 'DnsServerDsc'
+                          Version = '3.0.0'
+                      },
+                      @{
+                          Name = 'NetworkingDsc'
+                          Version = '8.2.0'
+                      },
+                      @{
+                          Name = 'PSReadline'
+                          Version = '2.2.6'
+                      }
+                  )
+
+                  Write-Output 'Creating Temp Directory'
+                  Try {
+                      $Null = New-Item -Path 'C:\Temp\Module-AD' -ItemType 'Directory' -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to create Temp directory $_"
+                      Exit 1
+                  }
+
+                  Write-Output 'Installing NuGet Package Provider'
+                  Try {
+                      $Null = Install-PackageProvider -Name 'NuGet' -MinimumVersion '2.8.5' -Force -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to install NuGet Package Provider $_"
+                      Exit 1
+                  }
+
+                  Write-Output 'Setting PSGallery Respository to trusted'
+                  Try {
+                      Set-PSRepository -Name 'PSGallery' -InstallationPolicy 'Trusted' -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to set PSGallery Respository to trusted $_"
+                      Exit 1
+                  }
+
+                  Write-Output 'Installing the needed Powershell DSC modules'
+                  Foreach ($Module in $Modules) {
+                      Try {
+                          Install-Module -Name $Module.Name -RequiredVersion $Module.Version -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to Import Modules $_"
+                          Exit 1
+                      }
+                  }
+
+                  Write-Output 'Installing SQL Server Management Studio'
+                  (New-Object -TypeName 'System.Net.WebClient').DownloadFile('https://aka.ms/ssmsfullsetup', 'C:\Temp\SSMS-Setup.exe')
+                  $ArgumentList = '/Quiet'
+                  Try {
+                      $Process = Start-Process -FilePath 'C:\Temp\SSMS-Setup.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru -Wait -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to install SQL Server Management Studio $_"
+                      #Exit 1
+                  }
+
+                  Write-Output 'Installing SQL Server Express'
+                  (New-Object -TypeName 'System.Net.WebClient').DownloadFile('https://go.microsoft.com/fwlink/?linkid=866658', 'C:\Temp\SQL2019-SSEI-Expr.exe')             
+                  $ArgumentList = '/ACTION=Download', '/HIDEPROGRESSBAR', '/MEDIATYPE=Core', '/MEDIAPATH=C:\Temp', '/QUIET'
+                  Try {
+                      $Process = Start-Process -FilePath 'C:\Temp\SQL2019-SSEI-Expr.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru -Wait -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to install SQL Server Express $_"
+                      #Exit 1
+                  }
+
+                  $ArgumentList = '/q', '/x:C:\Temp\SQLEXPR_2019'
+                  Try {
+                      $Process = Start-Process -FilePath 'C:\Temp\SQLEXPR_x64_ENU.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru -Wait -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to install SQL extract Server Express media $_"
+                      #Exit 1
+                  }
+
+                  $ArgumentList = '/ACTION=Install', '/QUIET', '/FEATURES=SQL', '/INSTANCENAME=SQLEXPRESS', '/IACCEPTSQLSERVERLICENSETERMS', '/SQLSVCACCOUNT="NT AUTHORITY\NETWORK SERVICE"', '/SQLSYSADMINACCOUNTS="administrators"', '/SKIPRULES="RebootRequiredCheck"' 
+                  Try {
+                      $Process = Start-Process -FilePath 'C:\Temp\SQLEXPR_2019\Setup.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru -Wait
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to install SQL extract Server Express media $_"
+                      #Exit 1
+                  }
+              CloudWatchOutputConfig:
+                CloudWatchOutputEnabled: true
+                CloudWatchLogGroupName: !Sub /aws/AD-ID/${AWS::StackName}
+            nextStep: configureInstance
+          - name: configureInstance
+            action: aws:runCommand
+            inputs:
+              DocumentName: AWS-RunPowerShellScript
+              InstanceIds:
+                - '{{mgmtInstanceId.InstanceId}}'
+              Parameters:
+                commands: |-
+                  Function Get-SecretInfo {
+                      [CmdletBinding()]
+                      Param (
+                          [Parameter(Mandatory = $True)][String]$Domain,
+                          [Parameter(Mandatory = $True)][String]$SecretArn
+                      )
+
+                      Write-Output "Getting $SecretArn Secret"
+                      Try {
+                          $SecretContent = Get-SECSecretValue -SecretId $SecretArn -ErrorAction Stop | Select-Object -ExpandProperty 'SecretString' | ConvertFrom-Json -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get $SecretArn Secret $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Creating PSCredential object from Secret'
+                      $Username = $SecretContent.username
+                      $UserPassword = ConvertTo-SecureString ($SecretContent.password) -AsPlainText -Force
+                      $DomainCredentials = New-Object -TypeName 'System.Management.Automation.PSCredential' ("$Domain\$Username", $UserPassword)
+                      $Credentials = New-Object -TypeName 'System.Management.Automation.PSCredential' ($Username, $UserPassword)
+
+                      $Output = [PSCustomObject][Ordered]@{
+                          'Credentials'       = $Credentials
+                          'DomainCredentials' = $DomainCredentials
+                          'Username'          = $Username
+                          'UserPassword'      = $UserPassword
+                      }
+
+                      Return $Output
+                  }
+
+                  Function Invoke-PreConfig {
+                      Write-Output 'Temporarily disabling Windows Firewall'
+                      Try {
+                          Get-NetFirewallProfile -ErrorAction Stop | Set-NetFirewallProfile -Enabled False -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to disable Windows Firewall $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Creating file directory for DSC public cert'
+                      Try {
+                          $Null = New-Item -Path 'C:\Temp\publickeys' -ItemType 'Directory' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to create publickeys file directory $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Creating certificate to encrypt credentials in MOF file'
+                      Try {
+                          $cert = New-SelfSignedCertificate -Type 'DocumentEncryptionCertLegacyCsp' -DnsName 'AWSQSDscEncryptCert' -HashAlgorithm 'SHA256' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to create self signed cert $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Exporting the self signed public key certificate'
+                      Try {
+                          $Null = $cert | Export-Certificate -FilePath 'C:\Temp\publickeys\AWSQSDscPublicKey.cer' -Force -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to copy self signed cert to publickeys directory $_"
+                          Exit 1
+                      }
+                  }
+
+                  Function Invoke-LcmConfig {
+                      Write-Output 'Getting the DSC cert thumbprint to secure the MOF file'
+                      Try {
+                          $DscCertThumbprint = Get-ChildItem -Path 'cert:\LocalMachine\My' -ErrorAction Stop | Where-Object { $_.Subject -eq 'CN=AWSQSDscEncryptCert' } | Select-Object -ExpandProperty 'Thumbprint'
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get DSC cert thumbprint $_"
+                          Exit 1
+                      } 
+
+                      [DSCLocalConfigurationManager()]
+                      Configuration LCMConfig
+                      {
+                          Node 'localhost' {
+                              Settings {
+                                  RefreshMode                    = 'Push'
+                                  ConfigurationModeFrequencyMins = 15
+                                  ActionAfterReboot              = 'StopConfiguration'
+                                  RebootNodeIfNeeded             = $false
+                                  ConfigurationMode              = 'ApplyAndAutoCorrect'
+                                  CertificateId                  = $DscCertThumbprint
+                              }
+                          }
+                      }
+
+                      Write-Output 'Generating MOF file for LCM'
+                      $Null = LCMConfig -OutputPath 'C:\Temp\LCMConfig'
+                          
+                      Write-Output 'Sets LCM configuration to MOF generated in previous command'
+                      Try {
+                          Set-DscLocalConfigurationManager -Path 'C:\Temp\LCMConfig' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to set LCM configuration $_"
+                          Exit 1
+                      } 
+                  }
+
+                  Function Get-EniConfig {
+                      Write-Output 'Getting network configuration'
+                      Try {
+                          $NetIpConfig = Get-NetIPConfiguration -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get network configuration $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Grabbing the current gateway address in order to static IP correctly'
+                      $GatewayAddress = $NetIpConfig | Select-Object -ExpandProperty 'IPv4DefaultGateway' | Select-Object -ExpandProperty 'NextHop'
+
+                      Write-Output 'Formatting IP address in format needed for IPAdress DSC resource'
+                      $IpAddress = $NetIpConfig | Select-Object -ExpandProperty 'IPv4Address' | Select-Object -ExpandProperty 'IpAddress'
+                      $Prefix = $NetIpConfig | Select-Object -ExpandProperty 'IPv4Address' | Select-Object -ExpandProperty 'PrefixLength'
+                      $IpAddr = 'IP/CIDR' -replace 'IP', $IpAddress -replace 'CIDR', $Prefix
+
+                      Write-Output 'Getting MAC address'
+                      Try {
+                          $MacAddress = Get-NetAdapter -ErrorAction Stop | Select-Object -ExpandProperty 'MacAddress'
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get MAC address $_"
+                          Exit 1
+                      }
+
+                      $Output = [PSCustomObject][Ordered]@{
+                          'GatewayAddress' = $GatewayAddress
+                          'IpAddress'      = $IpAddr
+                          'DnsIpAddress'   = $IpAddress
+                          'MacAddress'     = $MacAddress
+                      }
+                      Return $Output
+                  }
+
+                  Function Set-DscConfiguration {
+                      [CmdletBinding()]
+                      param(
+                          [Parameter(Mandatory = $true)][PSCredential]$DaCredentials,
+                          [Parameter(Mandatory = $true)][string]$MadDomainDNSName,
+                          [Parameter(Mandatory = $true)][string]$MadDomainNetBIOSName,
+                          [Parameter(Mandatory = $false)][string]$MadDcIP01,
+                          [Parameter(Mandatory = $false)][string]$MadDcIP02,
+                          [Parameter(Mandatory = $true)][string]$GatewayAddress,
+                          [Parameter(Mandatory = $true)][string]$InstanceIP,
+                          [Parameter(Mandatory = $true)][string]$InstanceNetBIOSName,
+                          [Parameter(Mandatory = $true)][string]$MacAddress
+                      )
+
+                      $VPCDNS = '169.254.169.253'
+
+                      Write-Output 'Getting the DSC encryption thumbprint to secure the MOF file'
+                      Try {
+                          $DscCertThumbprint = Get-ChildItem -Path 'cert:\LocalMachine\My' -ErrorAction Stop | Where-Object { $_.Subject -eq 'CN=AWSQSDscEncryptCert' } | Select-Object -ExpandProperty 'Thumbprint'
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get DSC cert thumbprint $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Creating configuration data block that has the certificate information for DSC configuration processing'
+                      $ConfigurationData = @{
+                          AllNodes = @(
+                              @{
+                                  NodeName             = '*'
+                                  #CertificateFile      = 'C:\Temp\publickeys\AWSQSDscPublicKey.cer'
+                                  #Thumbprint           = $DscCertThumbprint
+                                  PSDscAllowDomainUser = $true
+                                  PsDscAllowPlainTextPassword = $true
+                              },
+                              @{
+                                  NodeName = 'localhost'
+                              }
+                          )
+                      }
+
+                      Configuration ConfigInstance {
+                          Import-DscResource -ModuleName 'PSDesiredStateConfiguration', 'NetworkingDsc', 'ComputerManagementDsc', 'DnsServerDsc', 'ActiveDirectoryDsc'
+                          Node LocalHost {
+                              NetAdapterName RenameNetAdapterPrimary {
+                                  NewName    = 'Primary'
+                                  MacAddress = $MacAddress
+                              }
+                              NetIPInterface DisableDhcp {
+                                  Dhcp           = 'Disabled'
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                                  DependsOn      = '[NetAdapterName]RenameNetAdapterPrimary'
+                              }
+                              IPAddress SetIP {
+                                  IPAddress      = $InstanceIP
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                                  DependsOn      = '[NetIPInterface]DisableDhcp'
+                              }
+                              DefaultGatewayAddress SetDefaultGateway {
+                                  Address        = $GatewayAddress
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                                  DependsOn      = '[IPAddress]SetIP'
+                              }
+                              DnsServerAddress DnsServerAddress {
+                                  Address        = $MadDcIP01, $MadDcIP02, '169.254.169.253'
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                                  DependsOn      = '[DefaultGatewayAddress]SetDefaultGateway'
+                              }
+                              DnsConnectionSuffix DnsConnectionSuffix {
+                                  InterfaceAlias                 = 'Primary'
+                                  ConnectionSpecificSuffix       = $MadDomainDNSName
+                                  RegisterThisConnectionsAddress = $True
+                                  UseSuffixWhenRegistering       = $False
+                                  DependsOn                      = '[DnsServerAddress]DnsServerAddress'
+                              }
+                              IEEnhancedSecurityConfiguration 'DisableForAdministrators' {
+                                  Role    = 'Administrators'
+                                  Enabled = $false
+                              }
+                              IEEnhancedSecurityConfiguration 'DisableForUsers' {
+                                  Role    = 'Users'
+                                  Enabled = $false
+                              }
+                              WindowsFeature DnsTools {
+                                  Ensure    = 'Present'
+                                  Name      = 'RSAT-DNS-Server'
+                                  DependsOn = '[DnsConnectionSuffix]DnsConnectionSuffix'
+                              }
+                              WindowsFeature RSAT-AD-Tools {
+                                  Ensure    = 'Present'
+                                  Name      = 'RSAT-AD-Tools'
+                                  DependsOn = '[WindowsFeature]DnsTools'
+                              }
+                              WindowsFeature RSAT-ADDS {
+                                  Ensure    = 'Present'
+                                  Name      = 'RSAT-ADDS'
+                                  DependsOn = '[WindowsFeature]RSAT-AD-Tools'
+                              }
+                              WindowsFeature GPMC {
+                                  Ensure    = 'Present'
+                                  Name      = 'GPMC'
+                                  DependsOn = '[WindowsFeature]RSAT-ADDS'
+                              }
+                              Computer JoinDomain {
+                                  Name       = $InstanceNetBIOSName
+                                  DomainName = $MadDomainDnsName
+                                  Credential = $DaCredentials
+                                  DependsOn  = '[WindowsFeature]GPMC'
+                              }
+                          }
+                      }
+                      Write-Output 'Generating MOF file'
+                      $Null = ConfigInstance -OutputPath 'C:\Temp\ConfigInstance' -ConfigurationData $ConfigurationData
+                  }
+
+                  $AltSecret = Get-SecretInfo -Domain '{{MadDomainNetBIOSName}}' -SecretArn '{{MadAdminSecret}}'
+                  Invoke-PreConfig
+                  Invoke-LcmConfig
+                  $EniConfig = Get-EniConfig
+                  Set-DscConfiguration -DaCredentials $AltSecret.DomainCredentials -MadDomainDNSName '{{MadDomainDNSName}}' -MadDomainNetBIOSName '{{MadDomainNetBIOSName}}' -MadDcIP01 '{{MadDcIP01}}' -MadDcIP02 '{{MadDcIP02}}' -GatewayAddress $EniConfig.GatewayAddress -InstanceIP $EniConfig.IpAddress -InstanceNetBIOSName '{{MgmtServerNetBIOSName}}' -MacAddress $EniConfig.MacAddress
+            nextStep: runMgmtMof
+          - name: runMgmtMof
+            action: aws:runCommand
+            onFailure: step:signalfailure
+            inputs:
+              DocumentName: AWS-RunPowerShellScript
+              InstanceIds:
+                - '{{mgmtInstanceId.InstanceId}}'
+              Parameters:
+                commands: |-
+                  Function Invoke-DscStatusCheck {
+                      $LCMState = Get-DscLocalConfigurationManager -ErrorAction SilentlyContinue | Select-Object -ExpandProperty 'LCMState'
+                      If ($LCMState -eq 'PendingConfiguration' -Or $LCMState -eq 'PendingReboot') {
+                          Exit 3010
+                      } Else {
+                          Write-Output 'DSC Config Completed'
+                      }
+                  }
+
+                  Start-DscConfiguration 'C:\Temp\ConfigInstance' -Wait -Verbose -Force
+                  Invoke-DscStatusCheck
+              CloudWatchOutputConfig:
+                CloudWatchOutputEnabled: true
+                CloudWatchLogGroupName: !Sub /aws/AD-ID/${AWS::StackName}
+            nextStep: PostConfig
+          - name: PostConfig
+            action: aws:runCommand
+            inputs:
+              DocumentName: AWS-RunPowerShellScript
+              InstanceIds:
+                - '{{mgmtInstanceId.InstanceId}}'
+              Parameters:
+                commands: |-
+                  Function Get-SecretInfo {
+                      [CmdletBinding()]
+                      Param (
+                          [Parameter(Mandatory = $True)][String]$Domain,
+                          [Parameter(Mandatory = $True)][String]$SecretArn
+                      )
+
+                      Write-Output "Getting $SecretArn Secret"
+                      Try {
+                          $SecretContent = Get-SECSecretValue -SecretId $SecretArn -ErrorAction Stop | Select-Object -ExpandProperty 'SecretString' | ConvertFrom-Json -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get $SecretArn Secret $_"
+                        #Exit 1
+                      }
+
+                      Write-Output 'Creating PSCredential object from Secret'
+                      $Username = $SecretContent.username
+                      $UserPassword = ConvertTo-SecureString ($SecretContent.password) -AsPlainText -Force
+                      $DomainCredentials = New-Object -TypeName 'System.Management.Automation.PSCredential' ("$Domain\$Username", $UserPassword)
+                      $Credentials = New-Object -TypeName 'System.Management.Automation.PSCredential' ($Username, $UserPassword)
+
+                      $Output = [PSCustomObject][Ordered]@{
+                          'Credentials'       = $Credentials
+                          'DomainCredentials' = $DomainCredentials
+                          'Username'          = $Username
+                          'UserPassword'      = $UserPassword
+                      }
+
+                      Return $Output
+                  }
+
+                  Function Set-CredSSP {
+                      [CmdletBinding()]
+                      param(
+                          [Parameter(Mandatory = $true)][ValidateSet('Enable', 'Disable')][string]$Action
+                      )
+
+                      $RootKey = 'HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows'
+                      $CredDelKey = 'CredentialsDelegation'
+                      $FreshCredKey = 'AllowFreshCredentials'
+                      $FreshCredKeyNTLM = 'AllowFreshCredentialsWhenNTLMOnly'
+
+                      Switch ($Action) {
+                          'Enable' {
+                              Write-Output 'Enabling CredSSP'
+                              $CredDelKeyPresent = Test-Path -Path (Join-Path -Path "Registry::$RootKey" -ChildPath $CredDelKey) -ErrorAction SilentlyContinue
+                              If (-not $CredDelKeyPresent) {
+                                  Write-Output "Setting CredSSP registry entry $CredDelKey"
+                                  Try {
+                                      $CredDelPath = New-Item -Path "Registry::$RootKey" -Name $CredDelKey -ErrorAction Stop | Select-Object -ExpandProperty 'Name'
+                                  } Catch [System.Exception] {
+                                      Write-Output "Failed to create CredSSP registry entry $CredDelKey $_"
+                                      Remove-Item -Path (Join-Path -Path "Registry::$RootKey" -ChildPath $CredDelKey) -Force -Recurse
+                                      Exit 1
+                                  }
+                              } Else {
+                                  $CredDelPath = Join-Path -Path $RootKey -ChildPath $CredDelKey
+                              }
+
+                              $FreshCredKeyPresent = Test-Path -Path (Join-Path -Path "Registry::$CredDelPath" -ChildPath $FreshCredKey) -ErrorAction SilentlyContinue
+                              If (-not $FreshCredKeyPresent) {
+                                  Write-Output "Setting CredSSP registry entry $FreshCredKey"
+                                  Try {
+                                      $FreshCredKeyPath = New-Item -Path "Registry::$CredDelPath" -Name $FreshCredKey -ErrorAction Stop | Select-Object -ExpandProperty 'Name'
+                                  } Catch [System.Exception] {
+                                      Write-Output "Failed to create CredSSP registry entry $FreshCredKey $_"
+                                      Remove-Item -Path (Join-Path -Path "Registry::$RootKey" -ChildPath $CredDelKey) -Force -Recurse
+                                      Exit 1
+                                  }
+                              } Else {
+                                  $FreshCredKeyPath = Join-Path -Path $CredDelPath -ChildPath $FreshCredKey
+                              }
+
+                              $FreshCredKeyNTLMPresent = Test-Path -Path (Join-Path -Path "Registry::$CredDelPath" -ChildPath $FreshCredKeyNTLM) -ErrorAction SilentlyContinue
+                              If (-not $FreshCredKeyNTLMPresent) {
+                                  Write-Output "Setting CredSSP registry entry $FreshCredKeyNTLM"
+                                  Try {
+                                      $FreshCredKeyNTLMPath = New-Item -Path "Registry::$CredDelPath" -Name $FreshCredKeyNTLM -ErrorAction Stop | Select-Object -ExpandProperty 'Name'
+                                  } Catch [System.Exception] {
+                                      Write-Output "Failed to create CredSSP registry entry $FreshCredKeyNTLM $_"
+                                      Remove-Item -Path (Join-Path -Path "Registry::$RootKey" -ChildPath $CredDelKey) -Force -Recurse
+                                      Exit 1
+                                  }
+                              } Else {
+                                  $FreshCredKeyNTLMPath = Join-Path -Path $CredDelPath -ChildPath $FreshCredKeyNTLM
+                              }
+
+                              Try {
+                                  $Null = Set-ItemProperty -Path "Registry::$CredDelPath" -Name 'AllowFreshCredentials' -Value '1' -Type 'Dword' -Force -ErrorAction Stop
+                                  $Null = Set-ItemProperty -Path "Registry::$CredDelPath" -Name 'ConcatenateDefaults_AllowFresh' -Value '1' -Type 'Dword' -Force -ErrorAction Stop
+                                  $Null = Set-ItemProperty -Path "Registry::$CredDelPath" -Name 'AllowFreshCredentialsWhenNTLMOnly' -Value '1' -Type 'Dword' -Force -ErrorAction Stop
+                                  $Null = Set-ItemProperty -Path "Registry::$CredDelPath" -Name 'ConcatenateDefaults_AllowFreshNTLMOnly' -Value '1' -Type 'Dword' -Force -ErrorAction Stop
+                                  $Null = Set-ItemProperty -Path "Registry::$FreshCredKeyPath" -Name '1' -Value 'WSMAN/*' -Type 'String' -Force -ErrorAction Stop
+                                  $Null = Set-ItemProperty -Path "Registry::$FreshCredKeyNTLMPath" -Name '1' -Value 'WSMAN/*' -Type 'String' -Force -ErrorAction Stop
+                              } Catch [System.Exception] {
+                                  Write-Output "Failed to create CredSSP registry properties $_"
+                                  Remove-Item -Path (Join-Path -Path "Registry::$RootKey" -ChildPath $CredDelKey) -Force -Recurse
+                                  Exit 1
+                              }
+
+                              Try {
+                                  $Null = Enable-WSManCredSSP -Role 'Client' -DelegateComputer '*' -Force -ErrorAction Stop
+                                  $Null = Enable-WSManCredSSP -Role 'Server' -Force -ErrorAction Stop
+                              } Catch [System.Exception] {
+                                  Write-Output "Failed to enable CredSSP $_"
+                                  $Null = Disable-WSManCredSSP -Role 'Client' -ErrorAction SilentlyContinue
+                                  $Null = Disable-WSManCredSSP -Role 'Server' -ErrorAction SilentlyContinue
+                                  Exit 1
+                              }
+                          }
+                          'Disable' {
+                              Write-Output 'Disabling CredSSP'
+                              Try {
+                                  Disable-WSManCredSSP -Role 'Client' -ErrorAction Continue
+                                  Disable-WSManCredSSP -Role 'Server' -ErrorAction Stop
+                              } Catch [System.Exception] {
+                                  Write-Output "Failed to disable CredSSP $_"
+                                  Exit 1
+                              }
+
+                              Write-Output 'Removing CredSSP registry entries'
+                              Try {
+                                  Remove-Item -Path (Join-Path -Path "Registry::$RootKey" -ChildPath $CredDelKey) -Force -Recurse -ErrorAction Stop
+                              } Catch [System.Exception] {
+                                  Write-Output "Failed to remove CredSSP registry entries $_"
+                                  Exit 1
+                              }
+                          }
+                          Default { 
+                              Write-Output 'InvalidArgument: Invalid value is passed for parameter Action'
+                              Exit 1
+                          }
+                      }
+                  }
+
+                  Function Invoke-Cleanup {
+                      [CmdletBinding()]
+                      Param (
+                          [Parameter(Mandatory = $true)][String]$VPCCIDR
+                      )
+
+                      Write-Output 'Setting Windows Firewall WinRM Public rule to allow VPC CIDR traffic'
+                      Try {
+                          Set-NetFirewallRule -Name 'WINRM-HTTP-In-TCP-PUBLIC' -RemoteAddress $VPCCIDR
+                      } Catch [System.Exception] {
+                          Write-Output "Failed allow WinRM Traffic from VPC CIDR $_"
+                      }
+
+                      Write-Output 'Removing DSC Configuration'
+                      Try {    
+                          Remove-DscConfigurationDocument -Stage 'Current' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed build DSC Configuration $_"
+                      }
+
+                      Write-Output 'Re-enabling Windows Firewall'
+                      Try {
+                          Get-NetFirewallProfile -ErrorAction Stop | Set-NetFirewallProfile -Enabled 'True' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed re-enable firewall $_"
+                      }
+
+                      Write-Output 'Removing build files'
+                      Try {
+                          Remove-Item -Path 'C:\Temp' -Recurse -Force -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed remove build files $_"
+                      }
+
+                      Write-Output 'Removing self signed cert'
+                      Try {
+                          $SelfSignedThumb = Get-ChildItem -Path 'cert:\LocalMachine\My\' -ErrorAction Stop | Where-Object { $_.Subject -eq 'CN=AWSQSDscEncryptCert' } | Select-Object -ExpandProperty 'Thumbprint'
+                          Remove-Item -Path "cert:\LocalMachine\My\$SelfSignedThumb" -DeleteKey -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed remove self signed cert $_"
+                      }
+                  }
+
+                  Function Add-OuAcl {
+                      [CmdletBinding()]
+                      param(
+                          [Parameter(Mandatory = $true)][string]$AclPath,
+                          [Parameter(Mandatory = $true)][PSCredential]$Credential,
+                          [Parameter(Mandatory = $true)][Security.Principal.SecurityIdentifier]$IdentityReference,
+                          [Parameter(Mandatory = $true)][System.DirectoryServices.ActiveDirectoryRights]$ActiveDirectoryRights,
+                          [Parameter(Mandatory = $true)][System.Security.AccessControl.AccessControlType]$AccessControlType,
+                          [Parameter(Mandatory = $false)][Guid]$ObjectGuid,
+                          [Parameter(Mandatory = $false)][System.DirectoryServices.ActiveDirectorySecurityInheritance]$ActiveDirectorySecurityInheritance,
+                          [Parameter(Mandatory = $false)][Guid]$InheritedObjectGuid
+                      )
+                      Invoke-Command -Authentication 'Credssp' -ComputerName $env:COMPUTERNAME -Credential $Credential -ScriptBlock {
+                          Import-Module -Name 'ActiveDirectory' -Force
+
+                          [Security.Principal.SecurityIdentifier]$IdentityReference = $Using:IdentityReference | Select-Object -ExpandProperty 'Value'
+
+                          $ArgumentList = $IdentityReference, $Using:ActiveDirectoryRights, $Using:AccessControlType, $Using:ObjectGuid, $Using:ActiveDirectorySecurityInheritance, $Using:InheritedObjectGuid
+                          $ArgumentList = $ArgumentList.Where({ $_ -ne $Null })
+
+                          Write-Output 'Creating ACL object'
+                          Try {
+                              $Rule = New-Object -TypeName 'System.DirectoryServices.ActiveDirectoryAccessRule' -ArgumentList $ArgumentList -ErrorAction Stop
+                          } Catch [System.Exception] {
+                              Write-Output "Failed to create ACL object $_"
+                              Exit 1
+                          }
+
+                          Write-Output "Getting ACL for $Using:AclPath"
+                          Try {
+                              $ObjectAcl = Get-Acl -Path "AD:\$Using:AclPath" -ErrorAction Stop
+                              $ObjectAcl.AddAccessRule($Rule)
+                          } Catch [System.Exception] {
+                              Write-Output "Failed to get ACL for $AclPath $_"
+                              Exit 1
+                          }
+                          
+                          Write-Output "Setting ACL $ObjectAcl for $Using:AclPath"
+                          Try {
+                              Set-Acl -AclObject $ObjectAcl -Path "AD:\$Using:AclPath" -ErrorAction Stop
+                          } Catch [System.Exception] {
+                              Write-Output "Failed to set ACL for $Using:AclPath $_"
+                              Exit 1
+                          }
+                      }
+                  }
+
+                  $DomainCreds = (Get-SecretInfo -Domain '{{MadDomainNetBIOSName}}' -SecretArn '{{MadAdminSecret}}').DomainCredentials
+
+                  Write-Output 'Getting AD domain'
+                  Try {
+                      $Domain = Get-ADDomain -Credential $DomainCreds -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to get AD domain $_"
+                      Exit 1
+                  }
+
+                  $BaseDn = $Domain | Select-Object -ExpandProperty 'DistinguishedName'
+                  $FQDN = $Domain | Select-Object -ExpandProperty 'DNSRoot'
+                  $Netbios = $Domain | Select-Object -ExpandProperty 'NetBIOSName'
+
+                  $UserPassword = (Get-SecretInfo -Domain '{{MadDomainNetBIOSName}}' -SecretArn '{{MadAdminSecret}}').UserPassword
+
+                  $User = @{
+                      AccountPassword        = $UserPassword
+                      Name                   = 'Joiner-Svc'
+                      DisplayName            = 'Joiner-Svc'
+                      SamAccountName         = 'Joiner-Svc'
+                      UserPrincipalName      = "Joiner-Svc@$FQDN"
+                      KerberosEncryptionType = 'AES128', 'AES256'
+                      PasswordNeverExpires   = $True
+                      Enabled                = $True
+                      Path                   = $("OU=Users,OU=$Netbios,$BaseDn")
+                      Credential             = $DomainCreds
+                  }
+
+                  Write-Output 'Creating Joiner-Svc'
+                  Try {
+                      New-ADUser @User -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to create Joiner-Svc $_"
+                      Exit 1
+                  }
+
+                  Start-Sleep -Seconds 30
+
+                  Write-Output 'Getting RootDSE information'
+                  Try {
+                      $RootDse = Get-ADRootDSE -Credential $DomainCreds -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to get RootDSE information $_"
+                      Exit 1
+                  }
+
+                  Write-Output 'Getting computer SchemaNamingContext'
+                  Try {
+                      [System.GUID]$ComputerNameGuid = (Get-ADObject -SearchBase $RootDse.SchemaNamingContext -Filter { lDAPDisplayName -eq 'computer' } -Properties 'schemaIDGUID' -Credential $DomainCreds -ErrorAction Stop).schemaIDGUID
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to get computer SchemaNamingContext $_"
+                      Exit 1
+                  }
+
+                  $NullGuid = [guid]'00000000-0000-0000-0000-000000000000'
+
+                  $AclRules = @(
+                      @{
+                          ActiveDirectoryRights              = 'CreateChild, DeleteChild'
+                          AccessControlType                  = 'Allow'
+                          ObjectGUID                         = $ComputerNameGuid
+                          ActiveDirectorySecurityInheritance = 'All'
+                          InheritedObjectGuid                = $NullGuid
+                          Credential                         = $DomainCreds
+                      },
+                      @{
+                          ActiveDirectoryRights              = 'GenericRead, GenericWrite, ListChildren, ReadControl'
+                          AccessControlType                  = 'Allow'
+                          ObjectGUID                         = $NullGuid
+                          ActiveDirectorySecurityInheritance = 'Descendents'
+                          InheritedObjectGuid                = $ComputerNameGuid
+                          Credential                         = $DomainCreds
+                      }                      
+                  )
+
+                  Write-Output 'Getting Joiner-Svc SID'
+                  Try {
+                      $IdentityReference = Get-ADUser -Identity 'Joiner-Svc' -Credential $DomainCreds -ErrorAction Stop | Select-Object -ExpandProperty 'SID'
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to get Joiner-Svc SID $_"
+                      Exit 1
+                  }
+
+                  Set-CredSSP -Action 'Enable'
+
+                  Foreach ($AclRule in $AclRules) {
+                      Add-OuAcl -AclPath "OU=Computers,OU=$Netbios,$BaseDn" -Credential $AclRule.Credential -IdentityReference $IdentityReference -ActiveDirectoryRights $AclRule.ActiveDirectoryRights -AccessControlType $AclRule.AccessControlType -ObjectGUID $AclRule.ObjectGUID -ActiveDirectorySecurityInheritance $AclRule.ActiveDirectorySecurityInheritance -InheritedObjectGuid $AclRule.InheritedObjectGuid
+                  }
+
+                  Set-CredSSP -Action 'Disable'
+
+                  Invoke-Cleanup -VPCCIDR '{{VPCCIDR}}'
+              CloudWatchOutputConfig:
+                CloudWatchOutputEnabled: true
+                CloudWatchLogGroupName: !Sub /aws/AD-ID/${AWS::StackName}
+          - name: CFNSignalEnd
+            action: aws:branch
+            inputs:
+              Choices:
+                - NextStep: signalsuccess
+                  Not:
+                    Variable: '{{StackName}}'
+                    StringEquals: ''
+                - NextStep: sleepend
+                  Variable: '{{StackName}}'
+                  StringEquals: ''
+          - name: signalsuccess
+            action: aws:executeAwsApi
+            isEnd: True
+            inputs:
+              Service: cloudformation
+              Api: SignalResource
+              LogicalResourceId: MgmtInstance
+              StackName: '{{StackName}}'
+              Status: SUCCESS
+              UniqueId: '{{mgmtInstanceId.InstanceId}}'
+          - name: sleepend
+            action: aws:sleep
+            isEnd: True
+            inputs:
+              Duration: PT1S
+          - name: signalfailure
+            action: aws:executeAwsApi
+            inputs:
+              Service: cloudformation
+              Api: SignalResource
+              LogicalResourceId: MgmtInstance
+              StackName: '{{StackName}}'
+              Status: FAILURE
+              UniqueId: '{{mgmtInstanceId.InstanceId}}'
+      Tags:
+        - Key: StackName
+          Value: !Ref AWS::StackName
+  MgmtInstance:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT30M
+        Count: 1
+    Properties:
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 45
+            VolumeType: gp3
+            Encrypted: true
+            KmsKeyId: alias/aws/ebs
+            DeleteOnTermination: true
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !Ref AMI
+      InstanceType: t3.large
+      SecurityGroupIds:
+        - !Ref DomainMemberSG
+      SubnetId: !Ref VPCPublicSubnet1Subnet
+      Tags:
+        - Key: Name
+          Value: MAD-MGMT01
+        - Key: Domain
+          Value: !Ref MADDomainName
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+            - |
+              <powershell>
+              $Params = @{
+                  MadAdminSecret           = '${MadAdminSecret}'
+                  MadDomainDNSName         = '${MADDomainName}'
+                  MadDomainNetBIOSName     = '${MADNetBIOSName}'
+                  MadDcIP01                = '${MadDcIP01}'
+                  MadDcIP02                = '${MadDcIP02}'
+                  MgmtServerNetBIOSName    = 'MAD-MGMT01'
+                  StackName                = '${AWS::StackName}'
+                  VPCCIDR                  = '${VPCCIDR}'
+              }
+              Start-SSMAutomationExecution -DocumentName '${MgmtInstanceSSMAuto}' -Parameter $Params
+              </powershell>
+            - MadDcIP01: !Select [0, !GetAtt ManagedAD.DnsIpAddresses]
+              MadDcIP02: !Select [1, !GetAtt ManagedAD.DnsIpAddresses]
+              VPCCIDR: !GetAtt VPC.CidrBlock
+  OnPremDomainControllerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Domain Controllers Security Group
+      GroupName: AD-ID-OnPremDomainControllerSG
+      SecurityGroupIngress:
+        - Description: DNS
+          FromPort: 53
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 53
+        - Description: DNS
+          FromPort: 53
+          IpProtocol: udp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 53
+        - Description: Kerberos
+          FromPort: 88
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 88
+        - Description: Kerberos
+          FromPort: 88
+          IpProtocol: udp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 88
+        - Description: Windows Time
+          FromPort: 123
+          IpProtocol: udp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 123
+        - Description: RPC Port
+          FromPort: 135
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 135
+        - Description: Netlogon
+          FromPort: 138
+          IpProtocol: udp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 138
+        - Description: LDAP
+          FromPort: 389
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 389
+        - Description: LDAP
+          FromPort: 389
+          IpProtocol: udp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 389
+        - Description: SMB
+          FromPort: 445
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 445
+        - Description: SMB
+          FromPort: 445
+          IpProtocol: udp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 445
+        - Description: Kerberos Set & Change Password
+          FromPort: 464
+          IpProtocol: udp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 464
+        - Description: Kerberos Set & Change Password
+          FromPort: 464
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 464
+        - Description: LDAP over SSL
+          FromPort: 636
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 636
+        - Description: LDAP Global Catalog
+          FromPort: 3268
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 3268
+        - Description: LDAP Global Catalog over SSL
+          FromPort: 3269
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 3269
+        - Description: RDP Access
+          FromPort: 3389
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 3389
+        - Description: WinRM
+          FromPort: 5985
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 5985
+        - Description: SOAP ADWS
+          FromPort: 9389
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 9389
+        - Description: Random RPC
+          FromPort: 49152
+          IpProtocol: tcp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 65535
+        - Description: Random RPC
+          FromPort: 49152
+          IpProtocol: udp
+          CidrIp: !GetAtt VPC.CidrBlock
+          ToPort: 65535
+      Tags:
+        - Key: Name
+          Value: DomainControllersSecurityGroup
+      VpcId: !Ref VPC
+  OnPremDomainControllerSsmAuto:
+    Type: AWS::SSM::Document
+    Properties:
+      Content:
+        schemaVersion: "0.3"
+        description: Deploy AD with SSM Automation
+        parameters:
+          ADAdminSecParamName:
+            description: AWS Secrets Parameter Name that has Password and Username for the built-in administrator
+            type: String
+          ADAltUserSecParamName:
+            description: AWS Secrets Parameter Name for the account that will be added as Domain Administrator. This is separate from the built-in Administrator account
+            type: String
+          ADServer1NetBIOSName:
+            description: NetBIOS name of the first Active Directory Domain Controller (up to 15 characters)
+            type: String
+          DomainDNSName:
+            description: Fully qualified domain name (FQDN) of the forest root domain e.g. onprem.local
+            type: String
+          DomainNetBIOSName:
+            description: NetBIOS name of the domain (up to 15 characters) for users of earlier versions of Windows e.g. EXAMPLE
+            type: String
+          RestoreModeSecParamName:
+            description: AWS Secrets Parameter Name for the Active Directory Restore Mode Password
+            type: String
+          StackName:
+            description: Stack Name Input for cfn resource signal
+            type: String
+          VPCCIDR:
+            description: CIDR Block for the VPC
+            type: String
+        mainSteps:
+          - name: dc1InstanceId
+            action: aws:executeAwsApi
+            onFailure: step:signalfailure
+            inputs:
+              Service: ec2
+              Api: DescribeInstances
+              Filters:
+                - Name: tag:Name
+                  Values:
+                    - "{{ADServer1NetBIOSName}}"
+                - Name: tag:aws:cloudformation:stack-name
+                  Values:
+                    - "{{StackName}}"
+                - Name: instance-state-name
+                  Values:
+                    - running
+            outputs:
+              - Name: InstanceId
+                Selector: $.Reservations[0].Instances[0].InstanceId
+                Type: String
+            nextStep: intializeInstance
+          - name: intializeInstance
+            action: aws:runCommand
+            inputs:
+              DocumentName: AWS-RunPowerShellScript
+              InstanceIds:
+                - "{{dc1InstanceId.InstanceId}}"
+              Parameters:
+                commands: |-
+                  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+                  $Modules = @(
+                      @{
+                          Name = 'ActiveDirectoryDsc'
+                          Version = '6.0.1'
+                      },
+                      @{
+                          Name = 'ComputerManagementDsc'
+                          Version = '8.5.0'
+                      },
+                      @{
+                          Name = 'DnsServerDsc'
+                          Version = '3.0.0'
+                      },
+                      @{
+                          Name = 'NetworkingDsc'
+                          Version = '8.2.0'
+                      },
+                      @{
+                          Name = 'PSReadline'
+                          Version = '2.2.6'
+                      }
+                  )
+
+                  Write-Output 'Creating Temp Directory'
+                  Try {
+                      $Null = New-Item -Path 'C:\Temp\Module-AD' -ItemType 'Directory' -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to create Temp directory $_"
+                      Exit 1
+                  }
+
+                  Write-Output 'Installing NuGet Package Provider'
+                  Try {
+                      $Null = Install-PackageProvider -Name 'NuGet' -MinimumVersion '2.8.5' -Force -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to install NuGet Package Provider $_"
+                      Exit 1
+                  }
+
+                  Write-Output 'Setting PSGallery Respository to trusted'
+                  Try {
+                      Set-PSRepository -Name 'PSGallery' -InstallationPolicy 'Trusted' -ErrorAction Stop
+                  } Catch [System.Exception] {
+                      Write-Output "Failed to set PSGallery Respository to trusted $_"
+                      Exit 1
+                  }
+
+                  Write-Output 'Installing the needed Powershell DSC modules'
+                  Foreach ($Module in $Modules) {
+                      Try {
+                          Install-Module -Name $Module.Name -RequiredVersion $Module.Version -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to Import Modules $_"
+                          Exit 1
+                      }
+                  }
+              CloudWatchOutputConfig:
+                CloudWatchOutputEnabled: true
+                CloudWatchLogGroupName: !Sub /aws/AD-ID/${AWS::StackName}
+            nextStep: configureInstance
+          - name: configureInstance
+            action: aws:runCommand
+            inputs:
+              DocumentName: AWS-RunPowerShellScript
+              InstanceIds:
+                - "{{dc1InstanceId.InstanceId}}"
+              Parameters:
+                commands: |-
+                  Function Get-SecretInfo {
+                      [CmdletBinding()]
+                      Param (
+                          [Parameter(Mandatory = $True)][String]$Domain,
+                          [Parameter(Mandatory = $True)][String]$SecretArn
+                      )
+
+                      Write-Output "Getting $SecretArn Secret"
+                      Try {
+                          $SecretContent = Get-SECSecretValue -SecretId $SecretArn -ErrorAction Stop | Select-Object -ExpandProperty 'SecretString' | ConvertFrom-Json -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get $SecretArn Secret $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Creating PSCredential object from Secret'
+                      $Username = $SecretContent.username
+                      $UserPassword = ConvertTo-SecureString ($SecretContent.password) -AsPlainText -Force
+                      $DomainCredentials = New-Object -TypeName 'System.Management.Automation.PSCredential' ("$Domain\$Username", $UserPassword)
+                      $Credentials = New-Object -TypeName 'System.Management.Automation.PSCredential' ($Username, $UserPassword)
+
+                      $Output = [PSCustomObject][Ordered]@{
+                          'Credentials'       = $Credentials
+                          'DomainCredentials' = $DomainCredentials
+                          'Username'          = $Username
+                          'UserPassword'      = $UserPassword
+                      }
+
+                      Return $Output
+                  }
+
+                  Function Invoke-PreConfig {
+                      Write-Output 'Temporarily disabling Windows Firewall'
+                      Try {
+                          Get-NetFirewallProfile -ErrorAction Stop | Set-NetFirewallProfile -Enabled False -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to disable Windows Firewall $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Creating file directory for DSC public cert'
+                      Try {
+                          $Null = New-Item -Path 'C:\Temp\publickeys' -ItemType 'Directory' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to create publickeys file directory $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Creating certificate to encrypt credentials in MOF file'
+                      Try {
+                          $cert = New-SelfSignedCertificate -Type 'DocumentEncryptionCertLegacyCsp' -DnsName 'AWSQSDscEncryptCert' -HashAlgorithm 'SHA256' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to create self signed cert $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Exporting the self signed public key certificate'
+                      Try {
+                          $Null = $cert | Export-Certificate -FilePath 'C:\Temp\publickeys\AWSQSDscPublicKey.cer' -Force -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to copy self signed cert to publickeys directory $_"
+                          Exit 1
+                      }
+                  }
+
+                  Function Invoke-LcmConfig {
+                      Write-Output 'Getting the DSC cert thumbprint to secure the MOF file'
+                      Try {
+                          $DscCertThumbprint = Get-ChildItem -Path 'cert:\LocalMachine\My' -ErrorAction Stop | Where-Object { $_.Subject -eq 'CN=AWSQSDscEncryptCert' } | Select-Object -ExpandProperty 'Thumbprint'
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get DSC cert thumbprint $_"
+                          Exit 1
+                      } 
+
+                      [DSCLocalConfigurationManager()]
+                      Configuration LCMConfig
+                      {
+                          Node 'localhost' {
+                              Settings {
+                                  RefreshMode                    = 'Push'
+                                  ConfigurationModeFrequencyMins = 15
+                                  ActionAfterReboot              = 'StopConfiguration'
+                                  RebootNodeIfNeeded             = $false
+                                  ConfigurationMode              = 'ApplyAndAutoCorrect'
+                                  CertificateId                  = $DscCertThumbprint
+                              }
+                          }
+                      }
+
+                      Write-Output 'Generating MOF file for LCM'
+                      $Null = LCMConfig -OutputPath 'C:\Temp\LCMConfig'
+
+                      Write-Output 'Sets LCM configuration to MOF generated in previous command'
+                      Try {
+                          Set-DscLocalConfigurationManager -Path 'C:\Temp\LCMConfig' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to set LCM configuration $_"
+                          Exit 1
+                      } 
+                  }
+
+                  Function Get-EniConfig {
+                      Write-Output 'Getting network configuration'
+                      Try {
+                          $NetIpConfig = Get-NetIPConfiguration -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get network configuration $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Grabbing the current gateway address in order to static IP correctly'
+                      $GatewayAddress = $NetIpConfig | Select-Object -ExpandProperty 'IPv4DefaultGateway' | Select-Object -ExpandProperty 'NextHop'
+
+                      Write-Output 'Formatting IP address in format needed for IPAdress DSC resource'
+                      $IpAddress = $NetIpConfig | Select-Object -ExpandProperty 'IPv4Address' | Select-Object -ExpandProperty 'IpAddress'
+                      $Prefix = $NetIpConfig | Select-Object -ExpandProperty 'IPv4Address' | Select-Object -ExpandProperty 'PrefixLength'
+                      $IpAddr = 'IP/CIDR' -replace 'IP', $IpAddress -replace 'CIDR', $Prefix
+
+                      Write-Output 'Getting MAC address'
+                      Try {
+                          $MacAddress = Get-NetAdapter -ErrorAction Stop | Select-Object -ExpandProperty 'MacAddress'
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get MAC address $_"
+                          Exit 1
+                      }
+
+                      $Output = [PSCustomObject][Ordered]@{
+                          'GatewayAddress' = $GatewayAddress
+                          'IpAddress'      = $IpAddr
+                          'DnsIpAddress'   = $IpAddress
+                          'MacAddress'     = $MacAddress
+                      }
+                      Return $Output
+                  }
+
+                  Function Set-DscConfiguration {
+                      [CmdletBinding()]
+                      param(
+                          [Parameter(Mandatory = $true)][PSCredential]$AltAdminCredentials,
+                          [Parameter(Mandatory = $true)][String]$AltAdminUserName,
+                          [Parameter(Mandatory = $true)][PSCredential]$DaCredentials,
+                          [Parameter(Mandatory = $true)][string]$DomainDNSName,
+                          [Parameter(Mandatory = $true)][string]$DomainNetBIOSName,
+                          [Parameter(Mandatory = $true)][string]$GatewayAddress,
+                          [Parameter(Mandatory = $true)][string]$InstanceIP,
+                          [Parameter(Mandatory = $true)][string]$InstanceNetBIOSName,
+                          [Parameter(Mandatory = $true)][PSCredential]$LaCredentials,
+                          [Parameter(Mandatory = $true)][string]$MacAddress,
+                          [Parameter(Mandatory = $true)][PSCredential]$RestoreModeCredentials,
+                          [Parameter(Mandatory = $true)][string]$SiteName,
+                          [Parameter(Mandatory = $true)][string]$VPCCIDR
+                      )
+
+                      $VPCDNS = '169.254.169.253'
+
+                      Write-Output 'Getting the DSC encryption thumbprint to secure the MOF file'
+                      Try {
+                          $DscCertThumbprint = Get-ChildItem -Path 'cert:\LocalMachine\My' -ErrorAction Stop | Where-Object { $_.Subject -eq 'CN=AWSQSDscEncryptCert' } | Select-Object -ExpandProperty 'Thumbprint'
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get DSC cert thumbprint $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Creating configuration data block that has the certificate information for DSC configuration processing'
+                      $ConfigurationData = @{
+                          AllNodes = @(
+                              @{
+                                  NodeName             = '*'
+                                  #CertificateFile      = 'C:\Temp\publickeys\AWSQSDscPublicKey.cer'
+                                  #Thumbprint           = $DscCertThumbprint
+                                  PSDscAllowDomainUser = $true
+                                  PsDscAllowPlainTextPassword = $true
+                              },
+                              @{
+                                  NodeName = 'localhost'
+                              }
+                          )
+                      }
+
+                      Configuration ConfigInstance {
+                          Import-DscResource -ModuleName 'PSDesiredStateConfiguration', 'NetworkingDsc', 'ComputerManagementDsc', 'DnsServerDsc', 'ActiveDirectoryDsc'
+                          Node LocalHost {
+                              NetAdapterName RenameNetAdapterPrimary {
+                                  NewName    = 'Primary'
+                                  MacAddress = $MacAddress
+                              }
+                              NetIPInterface DisableDhcp {
+                                  Dhcp           = 'Disabled'
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                                  DependsOn      = '[NetAdapterName]RenameNetAdapterPrimary'
+                              }
+                              IPAddress SetIP {
+                                  IPAddress      = $InstanceIP
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                                  DependsOn      = '[NetIPInterface]DisableDhcp'
+                              }
+                              DefaultGatewayAddress SetDefaultGateway {
+                                  Address        = $GatewayAddress
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                                  DependsOn      = '[IPAddress]SetIP'
+                              }
+                              DnsServerAddress DnsServerAddress {
+                                  Address        = '127.0.0.1', '169.254.169.253'
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                                  DependsOn      = '[DefaultGatewayAddress]SetDefaultGateway'
+                              }
+                              DnsConnectionSuffix DnsConnectionSuffix {
+                                  InterfaceAlias                 = 'Primary'
+                                  ConnectionSpecificSuffix       = $DomainDNSName
+                                  RegisterThisConnectionsAddress = $True
+                                  UseSuffixWhenRegistering       = $False
+                                  DependsOn                      = '[DnsServerAddress]DnsServerAddress'
+                              }
+                              IEEnhancedSecurityConfiguration 'DisableForAdministrators' {
+                                  Role    = 'Administrators'
+                                  Enabled = $false
+                              }
+                              IEEnhancedSecurityConfiguration 'DisableForUsers' {
+                                  Role    = 'Users'
+                                  Enabled = $false
+                              }
+                              WindowsFeature DnsTools {
+                                  Ensure    = 'Present'
+                                  Name      = 'RSAT-DNS-Server'
+                                  DependsOn = '[DnsConnectionSuffix]DnsConnectionSuffix'
+                              }
+                              WindowsFeature RSAT-AD-Tools {
+                                  Ensure    = 'Present'
+                                  Name      = 'RSAT-AD-Tools'
+                                  DependsOn = '[WindowsFeature]DnsTools'
+                              }
+                              WindowsFeature RSAT-ADDS {
+                                  Ensure    = 'Present'
+                                  Name      = 'RSAT-ADDS'
+                                  DependsOn = '[WindowsFeature]RSAT-AD-Tools'
+                              }
+                              WindowsFeature GPMC {
+                                  Ensure    = 'Present'
+                                  Name      = 'GPMC'
+                                  DependsOn = '[WindowsFeature]RSAT-ADDS'
+                              }
+                              WindowsFeature DNS {
+                                  Ensure    = 'Present'
+                                  Name      = 'DNS'
+                                  DependsOn = '[WindowsFeature]GPMC'
+                              }
+                              WindowsFeature AD-Domain-Services {
+                                  Ensure    = 'Present'
+                                  Name      = 'AD-Domain-Services'
+                                  DependsOn = '[WindowsFeature]DNS'
+                              }
+                              Service ActiveDirectoryWebServices {
+                                  Name        = 'ADWS'
+                                  StartupType = 'Automatic'
+                                  State       = 'Running'
+                                  DependsOn   = '[WindowsFeature]AD-Domain-Services'
+                              }
+                              Computer Rename {
+                                  Name      = $InstanceNetBIOSName
+                                  DependsOn = '[WindowsFeature]AD-Domain-Services'
+                              }
+                              User AdministratorPassword {
+                                  UserName  = 'Administrator'
+                                  Password  = $LaCredentials
+                                  DependsOn = '[Computer]Rename'
+                              }
+                              ADDomain PrimaryDC {
+                                  DomainName                    = $DomainDnsName
+                                  DomainNetBIOSName             = $DomainNetBIOSName
+                                  Credential                    = $DaCredentials
+                                  SafemodeAdministratorPassword = $RestoreModeCredentials
+                                  DatabasePath                  = 'C:\NTDS'
+                                  LogPath                       = 'C:\NTDS'
+                                  SysvolPath                    = 'C:\SYSVOL'
+                                  DependsOn                     = '[User]AdministratorPassword'
+                              }
+                              WaitForADDomain WaitForPrimaryDC {
+                                  DomainName  = $DomainDnsName
+                                  WaitTimeout = 600
+                                  DependsOn   = '[ADDomain]PrimaryDC'
+                              }
+                              ADReplicationSite RegionSite {
+                                  Name                       = $SiteName
+                                  RenameDefaultFirstSiteName = $true
+                                  DependsOn                  = '[WaitForADDomain]WaitForPrimaryDC', '[Service]ActiveDirectoryWebServices'
+                              }
+                              ADReplicationSubnet VPCCIDR {
+                                  Name      = $VPCCIDR
+                                  Site      = $SiteName
+                                  DependsOn = '[ADReplicationSite]RegionSite'
+                              }
+                              ADUser AlternateAdminUser {
+                                  Ensure                 = 'Present'
+                                  DomainName             = $DomainDnsName
+                                  UserName               = $AltAdminUserName
+                                  Password               = $AltAdminCredentials
+                                  DisplayName            = $AltAdminUserName
+                                  PasswordAuthentication = 'Negotiate'
+                                  UserPrincipalName      = "$AltAdminUserName@$DomainDnsName"
+                                  Credential             = $DaCredentials
+                                  DependsOn              = '[ADReplicationSite]RegionSite'
+                              }
+                              ADGroup AddAdminToDomainAdminsGroup {
+                                  Ensure           = 'Present'
+                                  GroupName        = 'Domain Admins'
+                                  GroupScope       = 'Global'
+                                  Category         = 'Security'
+                                  MembersToInclude = @($AltAdminUserName, 'Administrator')
+                                  Credential       = $DaCredentials
+                                  DependsOn        = '[ADUser]AlternateAdminUser'
+                              }
+                              ADGroup AddAdminToEnterpriseAdminsGroup {
+                                  Ensure           = 'Present'
+                                  GroupName        = 'Enterprise Admins'
+                                  GroupScope       = 'Universal'
+                                  Category         = 'Security'
+                                  MembersToInclude = @($AltAdminUserName, 'Administrator')
+                                  Credential       = $DaCredentials
+                                  DependsOn        = '[ADUser]AlternateAdminUser'
+                              }
+                              ADGroup AddAdminToSchemaAdminsGroup {
+                                  Ensure           = 'Present'
+                                  GroupName        = 'Schema Admins'
+                                  GroupScope       = 'Universal'
+                                  Category         = 'Security'
+                                  MembersToExclude = @($AltAdminUserName, 'Administrator')
+                                  Credential       = $DaCredentials
+                                  DependsOn        = '[ADUser]AlternateAdminUser'
+                              }
+                              DnsServerForwarder ForwardtoVPCDNS {
+                                  IsSingleInstance = 'Yes'
+                                  IPAddresses      = $VPCDNS
+                                  DependsOn        = '[WaitForADDomain]WaitForPrimaryDC'
+                              }
+                              ADOptionalFeature RecycleBin {
+                                  FeatureName                       = 'Recycle Bin Feature'
+                                  EnterpriseAdministratorCredential = $DaCredentials
+                                  ForestFQDN                        = $DomainDnsName
+                                  DependsOn                         = '[WaitForADDomain]WaitForPrimaryDC'
+                              }
+                              ADKDSKey KdsKey {
+                                  Ensure                   = 'Present'
+                                  EffectiveTime            = ((Get-Date).addhours(-10))
+                                  AllowUnsafeEffectiveTime = $True
+                                  DependsOn                = '[WaitForADDomain]WaitForPrimaryDC'
+                              }
+                          }
+                      }
+                      Write-Output 'Generating MOF file'
+                      $Null = ConfigInstance -OutputPath 'C:\Temp\ConfigInstance' -ConfigurationData $ConfigurationData
+                  }
+
+                  $DaSecret = Get-SecretInfo -Domain '{{DomainNetBIOSName}}' -SecretArn '{{ADAdminSecParamName}}'
+                  $RmSecret = Get-SecretInfo -Domain '{{DomainNetBIOSName}}' -SecretArn '{{RestoreModeSecParamName}}'
+                  $AltSecret = Get-SecretInfo -Domain '{{DomainNetBIOSName}}' -SecretArn '{{ADAltUserSecParamName}}'
+                  Invoke-PreConfig
+                  Invoke-LcmConfig
+                  $EniConfig = Get-EniConfig
+                  Set-DscConfiguration -AltAdminCredentials $AltSecret.Credentials -AltAdminUserName $AltSecret.Username -DaCredentials $DaSecret.DomainCredentials -DomainDNSName '{{DomainDNSName}}' -DomainNetBIOSName '{{DomainNetBIOSName}}' -GatewayAddress $EniConfig.GatewayAddress -InstanceIP $EniConfig.IpAddress -InstanceNetBIOSName '{{ADServer1NetBIOSName}}' -LaCredentials $DaSecret.Credentials -MacAddress $EniConfig.MacAddress -RestoreModeCredentials $RmSecret.Credentials -SiteName '{{global:REGION}}' -VPCCIDR '{{VPCCIDR}}'
+              CloudWatchOutputConfig:
+                CloudWatchOutputEnabled: true
+                CloudWatchLogGroupName: !Sub /aws/AD-ID/${AWS::StackName}
+            nextStep: runDc1Mof
+          - name: runDc1Mof
+            action: aws:runCommand
+            onFailure: step:signalfailure
+            inputs:
+              DocumentName: AWS-RunPowerShellScript
+              InstanceIds:
+                - "{{dc1InstanceId.InstanceId}}"
+              Parameters:
+                commands: |-
+                  Function Invoke-DscStatusCheck {
+                      $LCMState = Get-DscLocalConfigurationManager -ErrorAction SilentlyContinue | Select-Object -ExpandProperty 'LCMState'
+                      If ($LCMState -eq 'PendingConfiguration' -Or $LCMState -eq 'PendingReboot') {
+                          Exit 3010
+                      } Else {
+                          Write-Output 'DSC Config Completed'
+                      }
+                  }
+                  Start-DscConfiguration 'C:\Temp\ConfigInstance' -Wait -Verbose -Force
+                  Invoke-DscStatusCheck
+              CloudWatchOutputConfig:
+                CloudWatchOutputEnabled: true
+                CloudWatchLogGroupName: !Sub /aws/AD-ID/${AWS::StackName}
+            nextStep: DnsConfig
+          - name: DnsConfig
+            action: aws:runCommand
+            onFailure: step:signalfailure
+            inputs:
+              DocumentName: AWS-RunPowerShellScript
+              InstanceIds:
+                - "{{dc1InstanceId.InstanceId}}"
+              Parameters:
+                commands: |-
+                  Function Set-DnsDscConfiguration {
+                      [CmdletBinding()]
+                      param(
+                          [Parameter(Mandatory = $true)][string]$ADServer1PrivateIP,
+                          [Parameter(Mandatory = $false)][string]$VPCCIDR
+                      )
+
+                      $AClass = 0..8
+                      $BClass = 9..16
+                      $CClass = 17..24
+                      $DClass = 25..32
+                      $IP = $VPCCIDR.Split('/')[0]
+                      [System.Collections.ArrayList]$IPArray = $IP -Split "\."
+                      $Range = $VPCCIDR.Split('/')[1]
+                      If ($AClass -contains $Range) {
+                          [System.Array]$Number = $IPArray[0] 
+                      } Elseif ($BClass -contains $Range) {
+                          [System.Array]$Number = $IPArray[0, 1]
+                      } Elseif ($CClass -contains $Range) {
+                          [System.Array]$Number = $IPArray[0, 1, 2] 
+                      } Elseif ($DClass -contains $Range) {
+                          [System.Array]$Number = $IPArray[0, 1, 2, 3] 
+                      } 
+                      [System.Array]::Reverse($Number)
+                      $IpRev = $Number -Join "."
+                      $ZoneName = $IpRev + '.in-addr.arpa'
+
+                      Write-Output 'Getting the DSC encryption thumbprint to secure the MOF file'
+                      Try {
+                          $DscCertThumbprint = Get-ChildItem -Path 'cert:\LocalMachine\My' -ErrorAction Stop | Where-Object { $_.Subject -eq 'CN=AWSQSDscEncryptCert' } | Select-Object -ExpandProperty 'Thumbprint'
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get DSC cert thumbprint $_"
+                          Exit 1
+                      }
+                      
+                      Write-Output 'Creating configuration data block that has the certificate information for DSC configuration processing'
+                      $ConfigurationData = @{
+                          AllNodes = @(
+                              @{
+                                  NodeName             = '*'
+                                  #CertificateFile      = 'C:\Temp\publickeys\AWSQSDscPublicKey.cer'
+                                  #Thumbprint           = $DscCertThumbprint
+                                  PSDscAllowDomainUser = $true
+                                  PsDscAllowPlainTextPassword = $true
+                              },
+                              @{
+                                  NodeName = 'localhost'
+                              }
+                          )
+                      }
+                      
+                      Configuration ConfigInstance {
+                          Import-DscResource -ModuleName 'PSDesiredStateConfiguration', 'NetworkingDsc', 'ComputerManagementDsc', 'DnsServerDsc', 'ActiveDirectoryDsc'
+                          Node LocalHost {
+                              DnsServerAddress DnsServerAddress {
+                                  Address        = $ADServer1PrivateIP, '127.0.0.1'
+                                  InterfaceAlias = 'Primary'
+                                  AddressFamily  = 'IPv4'
+                              }
+                              DnsConnectionSuffix DnsConnectionSuffix {
+                                  InterfaceAlias                 = 'Primary'
+                                  ConnectionSpecificSuffix       = (Get-ADDomain | Select-Object -ExpandProperty 'DNSRoot')
+                                  RegisterThisConnectionsAddress = $True
+                                  UseSuffixWhenRegistering       = $False
+                                  DependsOn                      = '[DnsServerAddress]DnsServerAddress'
+                              }
+                              DnsServerADZone CreateReverseLookupZone {
+                                  Ensure           = 'Present'
+                                  Name             = $ZoneName
+                                  DynamicUpdate    = 'Secure'
+                                  ReplicationScope = 'Forest'
+                                  DependsOn        = '[DnsConnectionSuffix]DnsConnectionSuffix'
+                              }
+                              DnsServerScavenging SetServerScavenging {
+                                  DnsServer          = 'localhost'
+                                  ScavengingState    = $true
+                                  ScavengingInterval = '7.00:00:00'
+                                  RefreshInterval    = '7.00:00:00'
+                                  NoRefreshInterval  = '7.00:00:00'
+                                  DependsOn          = '[DnsServerADZone]CreateReverseLookupZone'
+                              }
+                          }
+                      }
+                      Write-Output 'Generating MOF file'
+                      $Null = ConfigInstance -OutputPath 'C:\Temp\ConfigInstance' -ConfigurationData $ConfigurationData
+                  }
+
+                  Function Invoke-Cleanup {
+                      [CmdletBinding()]
+                      Param (
+                          [Parameter(Mandatory = $true)][String]$VPCCIDR
+                      )
+
+                      Write-Output 'Setting Windows Firewall WinRM Public rule to allow VPC CIDR traffic'
+                      Try {
+                          Set-NetFirewallRule -Name 'WINRM-HTTP-In-TCP-PUBLIC' -RemoteAddress $VPCCIDR
+                      } Catch [System.Exception] {
+                          Write-Output "Failed allow WinRM Traffic from VPC CIDR $_"
+                      }
+
+                      Write-Output 'Removing DSC Configuration'
+                      Try {    
+                          Remove-DscConfigurationDocument -Stage 'Current' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed build DSC Configuration $_"
+                      }
+
+                      Write-Output 'Re-enabling Windows Firewall'
+                      Try {
+                          Get-NetFirewallProfile -ErrorAction Stop | Set-NetFirewallProfile -Enabled 'True' -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed re-enable firewall $_"
+                      }
+
+                      Write-Output 'Removing build files'
+                      Try {
+                          Remove-Item -Path 'C:\Temp' -Recurse -Force -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed remove build files $_"
+                      }
+
+                      Write-Output 'Removing self signed cert'
+                      Try {
+                          $SelfSignedThumb = Get-ChildItem -Path 'cert:\LocalMachine\My\' -ErrorAction Stop | Where-Object { $_.Subject -eq 'CN=AWSQSDscEncryptCert' } | Select-Object -ExpandProperty 'Thumbprint'
+                          Remove-Item -Path "cert:\LocalMachine\My\$SelfSignedThumb" -DeleteKey -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed remove self signed cert $_"
+                      }
+                  }
+
+                  Function Get-EniConfig {
+                      Write-Output 'Getting network configuration'
+                      Try {
+                          $NetIpConfig = Get-NetIPConfiguration -ErrorAction Stop
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get network configuration $_"
+                          Exit 1
+                      }
+
+                      Write-Output 'Grabbing the current gateway address in order to static IP correctly'
+                      $GatewayAddress = $NetIpConfig | Select-Object -ExpandProperty 'IPv4DefaultGateway' | Select-Object -ExpandProperty 'NextHop'
+
+                      Write-Output 'Formatting IP address in format needed for IPAdress DSC resource'
+                      $IpAddress = $NetIpConfig | Select-Object -ExpandProperty 'IPv4Address' | Select-Object -ExpandProperty 'IpAddress'
+                      $Prefix = $NetIpConfig | Select-Object -ExpandProperty 'IPv4Address' | Select-Object -ExpandProperty 'PrefixLength'
+                      $IpAddr = 'IP/CIDR' -replace 'IP', $IpAddress -replace 'CIDR', $Prefix
+
+                      Write-Output 'Getting MAC address'
+                      Try {
+                          $MacAddress = Get-NetAdapter -ErrorAction Stop | Select-Object -ExpandProperty 'MacAddress'
+                      } Catch [System.Exception] {
+                          Write-Output "Failed to get MAC address $_"
+                          Exit 1
+                      }
+
+                      $Output = [PSCustomObject][Ordered]@{
+                          'GatewayAddress' = $GatewayAddress
+                          'IpAddress'      = $IpAddr
+                          'DnsIpAddress'   = $IpAddress
+                          'MacAddress'     = $MacAddress
+                      }
+                      Return $Output
+                  }
+
+                  $EniConfig = Get-EniConfig
+                  Set-DnsDscConfiguration -ADServer1PrivateIP $EniConfig.DnsIpAddress -VPCCIDR '{{VPCCIDR}}'
+                  Start-DscConfiguration 'C:\Temp\ConfigInstance' -Wait -Verbose -Force
+                  Invoke-Cleanup -VPCCIDR '{{VPCCIDR}}'
+              CloudWatchOutputConfig:
+                CloudWatchOutputEnabled: true
+                CloudWatchLogGroupName: !Sub /aws/AD-ID/${AWS::StackName}
+          - name: CFNSignalEnd
+            action: aws:branch
+            inputs:
+              Choices:
+                - NextStep: signalsuccess
+                  Not:
+                    Variable: "{{StackName}}"
+                    StringEquals: ""
+                - NextStep: sleepend
+                  Variable: "{{StackName}}"
+                  StringEquals: ""
+          - name: signalsuccess
+            action: aws:executeAwsApi
+            isEnd: true
+            inputs:
+              Service: cloudformation
+              Api: SignalResource
+              LogicalResourceId: OnPremDomainController
+              StackName: "{{StackName}}"
+              Status: SUCCESS
+              UniqueId: "{{dc1InstanceId.InstanceId}}"
+          - name: sleepend
+            action: aws:sleep
+            isEnd: true
+            inputs:
+              Duration: PT1S
+          - name: signalfailure
+            action: aws:executeAwsApi
+            inputs:
+              Service: cloudformation
+              Api: SignalResource
+              LogicalResourceId: OnPremDomainController
+              StackName: "{{StackName}}"
+              Status: FAILURE
+              UniqueId: "{{dc1InstanceId.InstanceId}}"
+      DocumentType: Automation
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+  OnPremDomainController:
+    Type: AWS::EC2::Instance
+    DependsOn: ManagedAD
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT60M
+    Properties:
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            KmsKeyId: alias/aws/ebs
+            VolumeSize: 45
+            VolumeType: gp3
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !Ref AMI
+      InstanceType: t3.medium
+      SecurityGroupIds:
+        - Ref: OnPremDomainControllerSG
+      SubnetId: !Ref VPCPublicSubnet1Subnet
+      Tags:
+        - Key: Domain
+          Value: !Ref OnpremDomainName
+        - Key: Name
+          Value: ONPREM-DC01
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+            - |
+              <powershell>
+              $Params = @{
+                  ADAdminSecParamName     = '${OnPremAdministratorSecret}'
+                  ADAltUserSecParamName   = '${OnPremAltAdminSecret}'
+                  ADServer1NetBIOSName    = 'ONPREM-DC01'
+                  DomainDNSName           = '${OnpremDomainName}'
+                  DomainNetBIOSName       = '${OnpremNetBIOSName}'
+                  RestoreModeSecParamName = '${OnPremRestoreModeSecret}'
+                  StackName               = '${AWS::StackName}'
+                  VPCCIDR                 = '${VPCCIDR}'
+              }
+              Start-SSMAutomationExecution -DocumentName '${OnPremDomainControllerSsmAuto}' -Parameter $Params
+              </powershell>
+            - VPCCIDR: !GetAtt VPC.CidrBlock
+  OnPremDomainControllerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: "-1"
+      Description: Security Group Rule between Domain Controllers
+      FromPort: -1
+      GroupId:
+        Ref: OnPremDomainControllerSG
+      SourceSecurityGroupId:
+        Ref: OnPremDomainControllerSG
+      ToPort: -1
+  RdsDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: AD-ID-DBSubnetGroup
+      DBSubnetGroupName: AD-ID-DBSubnetGroup
+      SubnetIds:
+        - !Ref VPCPublicSubnet1Subnet
+        - !Ref VPCPublicSubnet2Subnet
+  RdsDB:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      AllocatedStorage: 20
+      AvailabilityZone: !Select
+        - 0
+        - Fn::GetAZs: !Ref AWS::Region
+      BackupRetentionPeriod: 0
+      DBInstanceClass: db.t3.xlarge
+      DBInstanceIdentifier: AD-ID
+      DBSubnetGroupName: !Ref RdsDBSubnetGroup
+      DeleteAutomatedBackups: true
+      Domain: !Ref ManagedAD
+      DomainIAMRoleName: !Ref RDSRole
+      Engine: sqlserver-se
+      EngineVersion: 15.00.4198.2.v1
+      KmsKeyId: alias/aws/rds
+      LicenseModel: license-included
+      MasterUsername: admin
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${RdsAdminSecret}:SecretString:password}}'
+      MultiAZ: false
+      StorageEncrypted: true
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref DomainMemberSG

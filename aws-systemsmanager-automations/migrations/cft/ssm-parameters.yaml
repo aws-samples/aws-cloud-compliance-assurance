@@ -1,0 +1,211 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  DomainJoinUserName:
+    Type: String
+    NoEcho: true
+    Description: Value for Username SSM Parameter
+  DomainJoinPassword:
+    Type: String
+    NoEcho: true
+    Description: Value for Domain User password SSM Parameter
+
+Resources:
+  DomainUsernameParam:
+    Type: 'Custom::SSMParameter'
+    Properties:
+      ServiceToken: !GetAtt 'LambdaFunction.Arn'
+      Name: domainAdmin
+      Description: SSM Parameter for AD Username
+      Type: SecureString
+      Value: !Ref DomainJoinUserName
+      KeyId: !Ref KMSKey
+  DomainPasswordParam:
+    Type: 'Custom::SSMParameter'
+    Properties:
+      ServiceToken: !GetAtt 'LambdaFunction.Arn'
+      Name: domainPassword
+      Description: SSM Parameter for AD Password
+      Type: SecureString
+      Value: !Ref DomainJoinPassword
+      KeyId: !Ref KMSKey
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs16.x
+      Timeout: 60
+      Code:
+        ZipFile: >
+          var response = require('cfn-response');
+          var aws = require('aws-sdk');
+          exports.handler = function(event, context) {
+              console.log(event);
+              
+              var ssm = new aws.SSM();
+              var props = event.ResourceProperties;
+              var splitStackArn = event.StackId.split(':');
+              var region = splitStackArn[3];
+              var accountId = splitStackArn[4];
+              var paramName = props.Name;
+              var stackName = splitStackArn[5].split("/")[1];
+              var paramArn = "arn:aws:ssm:" + region + ":" + accountId + ":parameter/" + paramName;
+              var cb = function(err, resp) {
+                  var cfnRespData = { Arn: paramArn, Name: paramName };
+                  if (err) {
+                      console.log(err);
+                      response.send(event, context, response.FAILED, cfnRespData, paramArn);            
+                  } else {
+                      console.log(resp);
+                      response.send(event, context, response.SUCCESS, cfnRespData, paramArn);            
+                  }
+              };
+              if (event.RequestType == "Create") {
+                  var params = {
+                      Name: props.Name,
+                      Type: props.Type,
+                      Description: props.Description,
+                      Value: props.Value,
+                      KeyId: props.KeyId,
+                      Overwrite: false
+                  };
+                  if (props.Description) params.Description = props.Description;
+                  if (props.KeyId) params.KeyId = props.KeyId;
+                  
+                  ssm.putParameter(params, cb);
+              } else if (event.RequestType == "Update") {
+                  var params = {
+                      Name: props.Name,
+                      Type: props.Type,
+                      Description: props.Description,
+                      Value: props.Value,
+                      KeyId: props.KeyId,
+                      Overwrite: true
+                  };
+                  if (props.Description) params.Description = props.Description;
+                  if (props.KeyId) params.KeyId = props.KeyId;
+                  ssm.putParameter(params, cb);
+              } else if (event.RequestType == "Delete") {
+                  ssm.deleteParameter({ Name: paramName }, cb);
+              }
+          };
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: This is a custom resource Lambda function
+          - id: W92
+            reason: This is a custom resource Lambda function
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: SSMParameterLambdaPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ssm:PutParameter'
+                  - 'ssm:DeleteParameter'
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/domain*'
+        - PolicyName: KMSKeyAccessPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'kms:Encrypt'
+                  - 'kms:Decrypt'
+                  - 'kms:ReEncrypt*'
+                  - 'kms:GenerateDataKey*'
+                  - 'kms:DescribeKey'
+                Resource: !GetAtt KMSKey.Arn
+  KMSKey:
+    Type: 'AWS::KMS::Key'
+    Properties:
+      EnableKeyRotation: true
+      Description: KMS Key for SSM Parameter Encryption
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: key-default-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow administration of the key
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - 'kms:Create*'
+              - 'kms:Describe*'
+              - 'kms:Enable*'
+              - 'kms:List*'
+              - 'kms:Put*'
+              - 'kms:Update*'
+              - 'kms:Revoke*'
+              - 'kms:Disable*'
+              - 'kms:Get*'
+              - 'kms:Delete*'
+              - 'kms:TagResource'
+              - 'kms:UntagResource'
+              - 'kms:ScheduleKeyDeletion'
+              - 'kms:CancelKeyDeletion'
+            Resource: '*'
+          - Sid: Allow use of the key
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - 'kms:Encrypt'
+              - 'kms:Decrypt'
+              - 'kms:ReEncrypt*'
+              - 'kms:GenerateDataKey*'
+              - 'kms:DescribeKey'
+            Resource: '*'
+  Aliases:
+    Type: 'AWS::KMS::Alias'
+    Properties:
+      AliasName: alias/domain-creds-kms-key
+      TargetKeyId: !Ref KMSKey
+
+Outputs:
+  DomainCredsKmsKeyId:
+    Description: Arn of the KMS key used for encrypting AD creds parameters
+    Value: !GetAtt KMSKey.Arn
+    Export:
+      Name: 'AD-Creds-KMS-Key-Arn'
+  DomainUserNameParamArn:
+    Description: Arn of SSM Parameter which stores the Username used for domain join
+    Value: !Ref DomainUsernameParam
+    Export:
+      Name: 'AD-Username-SSM-Param-Arn'
+  DomainPasswordParamArn:
+    Description: Arn of SSM Parameter which stores the Password used for domain join
+    Value: !Ref DomainPasswordParam
+    Export:
+      Name: 'AD-Password-SSM-Param-Arn'
+  DomainUserNameParamName:
+    Description: Name of SSM Parameter which stores the Username used for domain join
+    Value: 'domainAdmin'
+    Export:
+      Name: 'AD-Username-SSM-Param-Name'
+  DomainPasswordParamName:
+    Description: Name of SSM Parameter which stores the Password used for domain join
+    Value: 'domainPassword'
+    Export:
+      Name: 'AD-Password-SSM-Param-Name'
+

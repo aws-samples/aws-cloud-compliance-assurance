@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  DomainJoinAutomationEC2Role:
+    Type: String
+    Description: Role Name for EC2 Domain Join Automation that will be created using this template
+    Default: EC2DomainJoinAutomation
+Resources:
+  DomainJoinAutomationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Ref DomainJoinAutomationEC2Role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: /
+      Policies:
+        - PolicyName: ssm-param-kms-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'kms:Decrypt'
+                Resource: 
+                  - !ImportValue AD-Creds-KMS-Key-Arn
+              - Effect: Allow
+                Action:
+                  - 'ssm:GetParameter*'
+                Resource:
+                  - !ImportValue AD-Username-SSM-Param-Arn
+                  - !ImportValue AD-Password-SSM-Param-Arn
+              
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Ref DomainJoinAutomationEC2Role
+      Path: /
+      Roles:
+        - Ref: DomainJoinAutomationRole
